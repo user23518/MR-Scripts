@@ -1,4 +1,3 @@
-cat > /network/iss/debette/users/marine.huang/MR/bidirectional_MR.sh << 'ENDOFFILE'
 #!/bin/bash
 #SBATCH --time=120:00:00
 #SBATCH --mem=100G
@@ -11,13 +10,12 @@ cat > /network/iss/debette/users/marine.huang/MR/bidirectional_MR.sh << 'ENDOFFI
 
 set -euo pipefail
 
-# ── Environment R ──────────────────────────────────────────────────────────
-module load R/4.5.3
+module load R/4.5.0
 export R_LIBS_USER=/network/iss/home/marine.huang/rLIBS
 
- # ── Paths ──────────────────────────────────────────────────────────────────
-SCRIPT_DIR="/network/iss/debette/users/marine.huang/MR"
-R_SCRIPT="${SCRIPT_DIR}/MR_bidirectional_cSVD.R"
+SCRIPT_DIR="/network/iss/debette/users/marine.huang/MR/Bidirectional_MR"
+RSCRIPT="/network/iss/home/marine.huang/.conda/envs/my_r_env/bin/Rscript"
+R_SCRIPT="${SCRIPT_DIR}/bidirectional_cSVD.R"  
 OUTDIR="/network/iss/debette/users/marine.huang/MR/results"
 
 mkdir -p "${OUTDIR}"
@@ -35,15 +33,9 @@ echo "R script  : ${R_SCRIPT}"
 echo "Output    : ${OUTDIR}"
 echo "=========================================="
 
-# ── Run ────────────────────────────────────────────────────────────────────
-Rscript "${R_SCRIPT}"
+"${RSCRIPT}" "${R_SCRIPT}"   
 
 echo "=========================================="
 echo "End       : $(date)"
 echo "=========================================="
-
-
-
-
-
-
+ENDOFFILE

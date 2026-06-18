@@ -5,7 +5,6 @@
 !*.sh
 !*.ipynb
 
-# Débloquer le chemin vers Bidirectional_MR
-!MR/
+ !MR/
 !MR/Bidirectional_MR/
 !MR/Bidirectional_MR/**

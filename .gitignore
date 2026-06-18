@@ -5,6 +5,6 @@
 !*.sh
 !*.ipynb
 
- !MR/
+!MR/
 !MR/Bidirectional_MR/
-!MR/Bidirectional_MR/**
+!MR/Bidirectional_MR/bidirectional_cSVD.R

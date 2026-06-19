@@ -17,7 +17,7 @@ resp <- httr::GET(
 )
 cat("Status code:", httr::status_code(resp), "\n")
 
-Sys.setenv(OPENGWAS_JWT = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImFwaS1qd3QiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJhcGkub3Blbmd3YXMuaW8iLCJhdWQiOiJhcGkub3Blbmd3YXMuaW8iLCJzdWIiOiJtYXJpbmUyODA2MDVAZ21haWwuY29tIiwiaWF0IjoxNzgwOTIyMDczLCJleHAiOjE3ODIxMzE2NzN9.BHvWnLOy7sIX2VU1E3jAySqSvt_VHROwrpG7i_uw3c_YHxEyz5v45ld9W_mvOPQLoqc-FuiCLyWrPYFo5QiUWAMQsfzK3t3YhFUpUYdjlbBfyMUC_9Sebmms2yMmK_uhvVSrjrJywxgtRKldj6t87ckZ6VNK57XIMFsRAL9H809Db_rc3sAhF31pfNe24wJ7Zy1NJiTBVfNIC8kfO8gbolfBmMWMjPR-5UI2_6jiijtHxPCsO7_QjO9ut10UadigjYHO17dhGjTj8K8Cag6p4UUv_dU9lk7FkrtsM_hVbKDC-WnjzgGt0S2DDyrc4ogc67IRhTmxgsLuATWpa1wV-A")
+Sys.setenv(OPENGWAS_JWT = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImFwaS1qd3QiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJhcGkub3Blbmd3YXMuaW8iLCJhdWQiOiJhcGkub3Blbmd3YXMuaW8iLCJzdWIiOiJtYXJpbmUyODA2MDVAZ21haWwuY29tIiwiaWF0IjoxNzgxODcwNDY2LCJleHAiOjE3ODMwODAwNjZ9.EcIOvENBnWvBij9bz2N9SixPZq2vFaZ5tzW1S3nfnLiADlbZYeClStlT6G_Y_0M3dfPOK4Yy3RdJKNOjocUa_qt5CM25O2E0NVpXihdcyRJWZUWR0sm-62icQFls-FUkT1Ver28IHtPY0neuLiQT93_d_3WbPCpUlOBgKqRj4iKvaAp0X8sg_jU6nUP4JoDN_dFoCIXq3m_LsQfeMAfxHMy0Mis7fx7XPxFpzhL4uQVdj8V0tFeYH6u8xqcUCzU1X7VNUDFhfMUPt9XWp8Lsk-fHL4uWbb-iGtVK0XwD108i_hwSv0PF_v_i4Xv-zgKOPQJ9GQaBAQX2RgffHdfBXA")
 ieugwasr::get_opengwas_jwt()
 ieugwasr::user()
 
@@ -47,7 +47,7 @@ csvd_traits <- list(
 
   list(name = "cerebral microbleeds",
        file = "/network/iss/debette/users/marine.huang/Data/MR_EUR_datasets/UKBiobank/sumstats_shiva_total_cmb_ball_bin.tsv",
-       binary = TRUE, prev = 0.07, n_manual = NULL),
+       binary = TRUE, prev = 0.07, n_cases_manual    = NULL,n_controls_manual = NULL),
 
   list(name = "Perivascular spaces",
        file = "/network/iss/debette/users/marine.huang/Data/MR_EUR_datasets/UKBiobank/sumstats_shiva_total_pvs_ball_iint.tsv",
@@ -61,7 +61,7 @@ exposures <- list(
   # ── Neuro ───────────────────────────────────────────────────────────────────
   list(name = "Alzheimer's disease (Nicolas 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/AD_nicolas2025/ad_nicolas2025_hg38.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.05, n_manual = NULL, primary_role = "outcome"),
+       binary = TRUE, prev = 0.05,  n_cases_manual    = NULL,       n_controls_manual = NULL, primary_role = "outcome"),
 
   list(name = "Parkinson's disease (Leonard 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/PD_leonard2025/GP2_euro_ancestry_meta_analysis_2024/pd_leonard2025_hg38.gwaslab.tsv.gz",
@@ -88,6 +88,18 @@ exposures <- list(
        binary = TRUE, prev = 0.0025, n_cases_manual    = 5976,    
        n_controls_manual = 630246, primary_role = "outcome"),
 
+ list(name = "Ischaemic stroke (Mishra 2022)",
+       file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/ISCHAEMICstroke_mishra2022_hg19.gwaslab.tsv.gz",
+       binary = TRUE, prev = 0.01 , n_cases_manual    = 47025,    
+       n_controls_manual = 630246, primary_role = "outcome"),
+
+ 
+ list(name = "Any stroke (Mishra 2022)",
+       file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/ANYstroke_mishra2022_hg19.gwaslab.tsv.gz",
+        binary = TRUE, prev =  0.015,  n_cases_manual   = 51018,    
+       n_controls_manual = 630246, primary_role = "outcome"),
+
+
   # ── Cardio-vasculaire ────────────────────────────────────────────────────────
   list(name = "Atrial fibrillation (Yuan 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/AF_yuan2025/af_yuan2025_hg38.gwaslab.tsv.gz",
@@ -95,16 +107,16 @@ exposures <- list(
 
   list(name = "Heart failure (Shah 2020)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/HF_shah2020/hf_shah2020_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.02, n_manual = NULL, primary_role = "exposure"),
+       binary = TRUE, prev = 0.02,  n_cases_manual    = NULL, n_controls_manual = NULL, primary_role = "exposure"),
 
   # ── Athérosclérose ──────────────────────────────────────────────────────────
   list(name = "Carotid atherosclerosis / IMT (Gummesson 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/ATHERO_gummesson2025/carotid_gummesson2025_hg38.gwaslab.tsv.gz",
-       binary = FALSE, prev = 26807, n_manual = NULL, primary_role = "exposure"),
+       binary = FALSE, prev = NULL, n_manual = 26807, primary_role = "exposure"),
 
   list(name = "Coronary plaq (Gummesson 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/ATHERO_gummesson2025/sis_gummesson2025_hg38.gwaslab.tsv.gz",
-       binary = FALSE, prev =24811, n_manual = NULL, primary_role = "exposure"),
+       binary = FALSE, prev =NULL, n_manual = 24811, primary_role = "exposure"),
 
   list(name = "Coronary artery calcification (Kavousi 2023)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/CAC_kavousi2023/cac_kavousi2023_hg19.gwaslab.tsv.gz",
@@ -168,8 +180,7 @@ exposures <- list(
 
 # ── Parameters ────────────────────────────────────────────────────────────────
 PVAL_IV  <- 5e-8; CLUMP_R2 <- 0.001; CLUMP_KB <- 10000
-MIN_IVS  <- 3;    MIN_EAF  <- 0.01
-# ↑ FIX 3 : T2D_PREVALENCE supprimé (non utilisé — prévalence passée via exp_cfg$prev)
+MIN_IVS  <- 1;    MIN_EAF  <- 0.01
 
 dir.create(OUTDIR, recursive = TRUE, showWarnings = FALSE)
 ts <- function(...) message(format(Sys.time(), "[%H:%M:%S] "), ...)
@@ -180,16 +191,48 @@ ts <- function(...) message(format(Sys.time(), "[%H:%M:%S] "), ...)
 # =============================================================================
 
 fmt_bse <- function(b, se, d = 4) {
+  if (is.null(b) || is.null(se)) return(NA_character_)
+  b  <- suppressWarnings(as.numeric(b))
+  se <- suppressWarnings(as.numeric(se))
   if (is.na(b) || is.na(se)) return(NA_character_)
   sprintf("%.*f (%.*f)", d, b, d, se)
 }
 
 fmt_p <- function(p) {
   if (is.null(p) || length(p) == 0) return(NA_character_)
-  p <- p[1]
+  p <- suppressWarnings(as.numeric(p[1]))
   if (is.na(p))  return(NA_character_)
   if (p < 0.001) formatC(p, format = "e", digits = 2)
   else           as.character(round(p, 3))
+}
+
+safe_round <- function(x, digits) {
+  if (is.null(x) || length(x) == 0) return(NA_real_)
+  x <- suppressWarnings(as.numeric(x[1]))
+  if (is.na(x)) return(NA_real_)
+  round(x, digits)
+}
+
+safe_numeric <- function(x) {
+  if (is.null(x) || length(x) == 0) return(NA_real_)
+  x <- suppressWarnings(as.numeric(x[1]))
+  if (is.na(x)) return(NA_real_)
+  x
+}
+
+safe_pleio <- function(pleio, col) {
+  if (is.null(pleio) || !is.data.frame(pleio) || nrow(pleio) == 0) return(NA_real_)
+  if (!col %in% names(pleio)) return(NA_real_)
+  v <- pleio[[col]][1]
+  if (is.null(v) || length(v) == 0) return(NA_real_)
+  suppressWarnings(as.numeric(v))
+}
+
+safe_het <- function(het, method_name, col) {
+  if (is.null(het) || !is.data.frame(het) || nrow(het) == 0) return(NA_real_)
+  het_sub <- het[grepl(method_name, het$method, ignore.case = TRUE), ]  # ← sub → het_sub
+  if (nrow(het_sub) == 0 || !col %in% names(het_sub)) return(NA_real_)
+  suppressWarnings(as.numeric(het_sub[[col]][1]))
 }
 
 check_palindromic <- function(EA, NEA) {
@@ -199,7 +242,6 @@ check_palindromic <- function(EA, NEA) {
   (EA == "C" & NEA == "G")
 }
 
-# ── FIX 4 : build_col_map — toutes les colonnes vérifiées avant assignation ──
 build_col_map <- function(dat) {
   list(
     rsid     = if ("rsID"      %in% names(dat)) "rsID"      else NULL,
@@ -216,36 +258,33 @@ build_col_map <- function(dat) {
     pos      = if ("POS"       %in% names(dat)) "POS"       else NULL
   )
 }
-
-# ── FIX 3 : inject_n — injecte le N dans le dataframe selon le type ──────────
+#cfg = configuration du trait 
 inject_n <- function(dat, cfg) {
+
 
   if (isTRUE(cfg$binary)) {
 
-    # N_CASE
-    if (!"N_CASE" %in% names(dat) || all(is.na(dat$N_CASE))) {
-      if (!is.null(cfg$n_cases_manual)) {
+    if (!"N_CASE" %in% names(dat) || all(is.na(dat$N_CASE))) { #Vérifie si N_CASE est absent du fichier OU entièrement NA
+      if (!is.null(cfg$n_cases_manual)) {  #Si vous avez renseigné n_cases_manual dans la config → l'injecte dans toutes les lignes
         dat$N_CASE <- cfg$n_cases_manual
         ts(sprintf("    N_CASE    (manuel) : %s",
                    format(cfg$n_cases_manual, big.mark = ",")))
       } else {
-        ts(sprintf("    ⚠ [%s] N_CASE absent — Steiger utilisera get_r_from_pn", cfg$name))
+        ts(sprintf("    ⚠ [%s] N_CASE absent", cfg$name))
       }
     }
 
-    # N_CONTROL
     if (!"N_CONTROL" %in% names(dat) || all(is.na(dat$N_CONTROL))) {
       if (!is.null(cfg$n_controls_manual)) {
         dat$N_CONTROL <- cfg$n_controls_manual
         ts(sprintf("    N_CONTROL (manuel) : %s",
                    format(cfg$n_controls_manual, big.mark = ",")))
       } else {
-        ts(sprintf("    ⚠ [%s] N_CONTROL absent — Steiger utilisera get_r_from_pn", cfg$name))
+        ts(sprintf("    ⚠ [%s] N_CONTROL absent", cfg$name))
       }
     }
 
-    # N total reconstruit
-    if ((!"N" %in% names(dat) || all(is.na(dat$N))) &&
+    if ((!"N" %in% names(dat) || all(is.na(dat$N))) && #Si N total absent → le recalcule = cas + contrôles
         "N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat) &&
         !all(is.na(dat$N_CASE)) && !all(is.na(dat$N_CONTROL))) {
       dat$N <- dat$N_CASE + dat$N_CONTROL
@@ -254,7 +293,6 @@ inject_n <- function(dat, cfg) {
 
   } else {
 
-    # Trait continu : n_total_manual ou n_manual (rétrocompatibilité)
     n_val <- if (!is.null(cfg$n_total_manual)) cfg$n_total_manual else cfg$n_manual
 
     if (!"N" %in% names(dat) || all(is.na(dat$N))) {
@@ -262,7 +300,7 @@ inject_n <- function(dat, cfg) {
         dat$N <- n_val
         ts(sprintf("    N total   (manuel) : %s", format(n_val, big.mark = ",")))
       } else {
-        ts(sprintf("    ⚠ [%s] N total absent — Steiger limité", cfg$name))
+        ts(sprintf("    ⚠ [%s] N total absent", cfg$name))
       }
     }
   }
@@ -270,18 +308,13 @@ inject_n <- function(dat, cfg) {
   dat
 }
 
-# ── Sauvegarde XLSX incrémentale après chaque direction ───────────────────────
-# Lit l'existant, ajoute la nouvelle ligne, réécrit.
-# Robuste aux crashes : chaque direction est persistée immédiatement.
-# Bonferroni = NA ici (N_TESTS inconnu) — mis à jour dans le tableau final.
-
-append_to_xlsx <- function(row, xlsx_path) {
+# ── Sauvegarde XLSX incrémentale ──────────────────────────────────────────────
+append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale
 
   if (!HAS_XLSX) return(invisible(NULL))
 
   tryCatch({
 
-    # ── Lire le fichier existant ────────────────────────────────────────────
     tbl_inc <- if (file.exists(xlsx_path)) {
       tryCatch(
         openxlsx::read.xlsx(xlsx_path, sheet = "Results"),
@@ -293,29 +326,23 @@ append_to_xlsx <- function(row, xlsx_path) {
       )
     } else NULL
 
-    # ── Fusionner ────────────────────────────────────────────────────────────
     if (!is.null(tbl_inc) && nrow(tbl_inc) > 0) {
-
-      # Harmoniser les colonnes si make_row a évolué entre 2 sessions
       cols_new <- setdiff(names(row),     names(tbl_inc))
       cols_old <- setdiff(names(tbl_inc), names(row))
       for (col in cols_new) tbl_inc[[col]] <- NA
       for (col in cols_old) row[[col]]     <- NA
       row     <- row[, names(tbl_inc), drop = FALSE]
-      tbl_inc <- rbind(tbl_inc, row)
-
+      tbl_inc <- rbind(tbl_inc, row) #ajoute la nouvelle ligne 
     } else {
       tbl_inc <- row
     }
 
-    # ── Styles ───────────────────────────────────────────────────────────────
     h_style <- openxlsx::createStyle(
       fontColour = "#FFFFFF", fgFill = "#2F5597",
       halign = "CENTER", textDecoration = "Bold", wrapText = TRUE
     )
-    s_style <- openxlsx::createStyle(fgFill = "#E2EFDA")   # vert  p < 0.05
+    s_style <- openxlsx::createStyle(fgFill = "#E2EFDA") #ligne significative 
 
-    # ── Construire le workbook ────────────────────────────────────────────────
     wb <- openxlsx::createWorkbook()
     openxlsx::addWorksheet(wb, "Results")
     openxlsx::writeData(wb, "Results", tbl_inc, headerStyle = h_style)
@@ -332,45 +359,48 @@ append_to_xlsx <- function(row, xlsx_path) {
                            cols   = seq_len(ncol(tbl_inc)),
                            widths = "auto")
     openxlsx::freezePane(wb, "Results", firstRow = TRUE)
-
     openxlsx::saveWorkbook(wb, xlsx_path, overwrite = TRUE)
+
     ts(sprintf("  ✓ XLSX incrémental : %d ligne(s) → %s",
                nrow(tbl_inc), basename(xlsx_path)))
 
   }, error = function(e) {
-    ts(sprintf("  ! Erreur XLSX incrémental : %s — résultat préservé dans TSV",
-               conditionMessage(e)))
+    ts(sprintf("  ! Erreur XLSX incrémental : %s", conditionMessage(e)))
   })
 }
 
-# ── FIX 2 : make_row déplacé ici — AVANT la boucle qui l'appelle ─────────────
+# ── make_row — version sécurisée ──────────────────────────────────────────────
 make_row <- function(d, analysis_type = "primary", bonf_n = NA_integer_) {
 
-  bonfp <- if (!is.na(d$ivw$pval) && !is.na(bonf_n)) {
-    min(1, d$ivw$pval * bonf_n)
-  } else NA_real_
+
+#p-value Bonferroni = p × N_tests (plafonné à 1)
+  bonfp <- tryCatch({
+    p <- safe_numeric(d$ivw$pval)
+    if (!is.na(p) && !is.na(bonf_n)) min(1, p * bonf_n) else NA_real_
+  }, error = function(e) NA_real_) 
+
 
   data.frame(
-    Analysis_type              = analysis_type,
+    Analysis_type              = analysis_type, #primary or sensitive reverse 
     Exposure                   = d$exposure,
     Outcome                    = d$outcome,
     N_SNPs                     = d$n_snps,
     F_statistic_median         = d$f_median,
-    IVW_Beta_SE                = fmt_bse(d$ivw$b, d$ivw$se),
+    IVW_Beta_SE                = fmt_bse(d$ivw$b,  d$ivw$se),
     IVW_p                      = fmt_p(d$ivw$pval),
-    IVW_p_raw                  = d$ivw$pval,
+    IVW_p_raw                  = safe_numeric(d$ivw$pval),
     IVW_p_Bonferroni           = fmt_p(bonfp),
     Concordant_sensitivity     = d$concordant,
     Concordance_reason         = d$conc_reason,
-    Q                          = round(d$het_Q, 2),
+    Q                          = safe_round(d$het_Q,  2),
     Q_p                        = fmt_p(d$het_Qp),
-    Egger_Beta_SE              = fmt_bse(d$eg$b, d$eg$se),
+    Egger_Beta_SE              = fmt_bse(d$eg$b,  d$eg$se),
     Egger_Beta_p               = fmt_p(d$eg$pval),
-    Egger_Intercept            = round(d$eg_int,    5),
-    Egger_Intercept_SE         = round(d$eg_int_se, 5),
+    Egger_Intercept            = safe_round(d$eg_int,    5),
+    Egger_Intercept_SE         = safe_round(d$eg_int_se, 5),
     Egger_Intercept_p          = fmt_p(d$eg_int_p),
     Egger_Heterogeneity_p      = fmt_p(d$eg_het_p),
-    WM_Beta_SE                 = fmt_bse(d$wm$b, d$wm$se),
+    WM_Beta_SE                 = fmt_bse(d$wm$b,  d$wm$se),
     WM_p                       = fmt_p(d$wm$pval),
     RadialMR_IVW_Beta_SE       = fmt_bse(d$rad$b, d$rad$se),
     RadialMR_IVW_p             = fmt_p(d$rad$pval),
@@ -398,8 +428,7 @@ read_gwaslab <- function(path, min_eaf = NULL, verbose = TRUE) {
   required <- c("SNPID", "CHR", "POS", "NEA", "EA", "BETA", "SE", "P")
   missing  <- setdiff(required, names(dt))
   if (length(missing) > 0)
-    stop("Missing required gwaslab columns: ", paste(missing, collapse = ", "),
-         "\n  Found: ", paste(names(dt), collapse = ", "))
+    stop("Missing required gwaslab columns: ", paste(missing, collapse = ", "))
 
   n0 <- nrow(dt)
 
@@ -418,7 +447,6 @@ read_gwaslab <- function(path, min_eaf = NULL, verbose = TRUE) {
     if (verbose)
       ts(sprintf("  EAF filter [%.2f-%.2f] : %d removed  (%d remaining)",
                  min_eaf, 1 - min_eaf, n_before - nrow(dt), nrow(dt)))
-    n0 <- nrow(dt)
   }
 
   ts(sprintf("  Final               : %s variants ready for MR",
@@ -441,15 +469,12 @@ run_radial <- function(dat) {
     }
 
     ri <- RadialMR::format_radial(
-      BXG = dat$beta.exposure, BYG = dat$beta.outcome,
-      seBXG = dat$se.exposure, seBYG = dat$se.outcome,
-      RSID = dat$SNP
+      BXG  = dat$beta.exposure, BYG  = dat$beta.outcome,
+      seBXG = dat$se.exposure,  seBYG = dat$se.outcome,
+      RSID  = dat$SNP
     )
 
-    if (is.null(ri) || nrow(ri) == 0) {
-      ts("  RadialMR: format_radial retourné vide — skipping")
-      return(empty)
-    }
+    if (is.null(ri) || nrow(ri) == 0) return(empty)
 
     out <- RadialMR::ivw_radial(ri, alpha = 0.05, weights = 3)
 
@@ -458,10 +483,10 @@ run_radial <- function(dat) {
       return(modifyList(empty, list(nsnp = nrow(dat), n_out = 0L)))
     }
 
-    bad      <- as.character(out$outliers$SNP)
+    bad       <- as.character(out$outliers$SNP)
     ts(sprintf("  RadialMR: %d outlier(s): %s", length(bad), paste(bad, collapse = ", ")))
 
-    clean_dat <- dat[!dat$SNP %in% bad, ]   # ← FIX 6 : renommé clean → clean_dat
+    clean_dat <- dat[!dat$SNP %in% bad, ]
     if (nrow(clean_dat) < MIN_IVS) return(modifyList(empty, list(n_out = length(bad))))
 
     r2 <- mr(clean_dat, method_list = "mr_ivw")
@@ -474,14 +499,20 @@ run_radial <- function(dat) {
 
 check_concordance <- function(ivw_b, ivw_p, eg_b, eg_p, wm_b, wm_p, a = 0.05) {
   issues <- character(0)
+
+  ivw_b <- safe_numeric(ivw_b)
+  ivw_p <- safe_numeric(ivw_p)
+  eg_b  <- safe_numeric(eg_b)
+  wm_b  <- safe_numeric(wm_b)
+  wm_p  <- safe_numeric(wm_p)
+
   if (!is.na(ivw_p) && ivw_p < a) {
-    if (!is.na(eg_b) && sign(eg_b) != sign(ivw_b))
+    if (!is.na(eg_b) && !is.na(ivw_b) && sign(eg_b) != sign(ivw_b))
       issues <- c(issues, "MR-Egger direction discordant")
-    if (!is.na(wm_b) && sign(wm_b) != sign(ivw_b))
+    if (!is.na(wm_b) && !is.na(ivw_b) && sign(wm_b) != sign(ivw_b))
       issues <- c(issues, "Weighted median direction discordant")
-    if (!is.na(wm_p) && wm_p >= a)
-      issues <- c(issues, "Weighted median non-significant")
   }
+
   list(
     ok     = length(issues) == 0,
     reason = if (length(issues) == 0) "—" else paste(issues, collapse = "; ")
@@ -529,34 +560,30 @@ run_direction <- function(
              f_median, min(f_all, na.rm = TRUE), sum(f_all < 10, na.rm = TRUE)))
 
   # ── Availability filter ───────────────────────────────────────────────────
-  ts("  Checking IV availability in outcome GWAS ...")
   avail_rsid <- ivs[[ec$rsid]] %in% out_gwas[[oc$rsid]]
   n_avail    <- sum(avail_rsid)
   n_missing  <- nrow(ivs) - n_avail
 
-  ts(sprintf("  rsID match         : %d / %d SNPs found in outcome  |  %d missing (%.1f%%)",
+  ts(sprintf("  rsID match : %d / %d SNPs found  |  %d missing (%.1f%%)",
              n_avail, nrow(ivs), n_missing, 100 * n_missing / nrow(ivs)))
 
   if (n_avail < MIN_IVS) {
-    ts(sprintf("  ✗ Only %d SNPs available in outcome (< MIN_IVS = %d) — skipping",
-               n_avail, MIN_IVS))
+    ts(sprintf("  ✗ Only %d SNPs available (< MIN_IVS = %d) — skipping", n_avail, MIN_IVS))
     return(NULL)
   }
 
   ivs <- ivs[avail_rsid, ]
-  ts(sprintf("  %d SNPs retained → proceeding to palindrome removal", nrow(ivs)))
 
   # ── Remove palindromes ────────────────────────────────────────────────────
   ivs$is_palindromic <- check_palindromic(EA = ivs[[ec$ea]], NEA = ivs[[ec$oa]])
   n_palind <- sum(ivs$is_palindromic, na.rm = TRUE)
-  ts(sprintf("  Palindrome  : %d palindromic SNPs in data set", n_palind))
+  ts(sprintf("  Palindrome : %d palindromic SNPs", n_palind))
   ivs <- ivs[!is.na(ivs$is_palindromic) & !ivs$is_palindromic, ]
-  ts(sprintf("  %d SNPs retained after palindrome removal → proceeding to LD clumping", nrow(ivs)))
 
   if (nrow(ivs) < MIN_IVS) { ts("  ✗ Not enough IVs after palindrome removal"); return(NULL) }
 
   # ── 2. Format exposure ────────────────────────────────────────────────────
-    eargs <- list(
+  eargs <- list(
     ivs, type = "exposure",
     snp_col           = ec$rsid,
     beta_col          = ec$beta,
@@ -565,12 +592,12 @@ run_direction <- function(
     other_allele_col  = ec$oa,
     pval_col          = ec$pval
   )
-  if (!is.null(ec$eaf)     && ec$eaf     %in% names(ivs)) eargs$eaf_col        <- ec$eaf
-  if (!is.null(ec$n)       && ec$n       %in% names(ivs)) eargs$samplesize_col <- ec$n
-  if (!is.null(ec$chr)     && ec$chr     %in% names(ivs)) eargs$chr_col        <- ec$chr
-  if (!is.null(ec$pos)     && ec$pos     %in% names(ivs)) eargs$pos_col        <- ec$pos
-  if (!is.null(ec$ncase)   && ec$ncase   %in% names(ivs)) eargs$ncase_col      <- ec$ncase
-  if (!is.null(ec$ncontrol)&& ec$ncontrol%in% names(ivs)) eargs$ncontrol_col   <- ec$ncontrol
+  if (!is.null(ec$eaf)     && ec$eaf      %in% names(ivs)) eargs$eaf_col        <- ec$eaf
+  if (!is.null(ec$n)       && ec$n        %in% names(ivs)) eargs$samplesize_col <- ec$n
+  if (!is.null(ec$chr)     && ec$chr      %in% names(ivs)) eargs$chr_col        <- ec$chr
+  if (!is.null(ec$pos)     && ec$pos      %in% names(ivs)) eargs$pos_col        <- ec$pos
+  if (!is.null(ec$ncase)   && ec$ncase    %in% names(ivs)) eargs$ncase_col      <- ec$ncase
+  if (!is.null(ec$ncontrol)&& ec$ncontrol %in% names(ivs)) eargs$ncontrol_col   <- ec$ncontrol
 
   exp_fmt          <- do.call(format_data, eargs)
   exp_fmt$exposure <- exp_name
@@ -597,14 +624,13 @@ run_direction <- function(
       cpmap          <- setNames(exp_c$SNP, exp_cp)
       tmp            <- out_gwas[idx, ]
       tmp[[oc$rsid]] <- cpmap[out_cp[idx]]
-      ts(sprintf("  Chr:pos matched %d IVs", nrow(tmp)))
       if (nrow(tmp) > nrow(out_sub)) out_sub <- tmp
     }
   }
   if (nrow(out_sub) < MIN_IVS) { ts("  ✗ Not enough IVs in outcome GWAS"); return(NULL) }
 
   # ── 5. Format outcome ─────────────────────────────────────────────────────
- oargs <- list(
+  oargs <- list(
     out_sub, type = "outcome",
     snp_col           = oc$rsid,
     beta_col          = oc$beta,
@@ -613,27 +639,23 @@ run_direction <- function(
     other_allele_col  = oc$oa,
     pval_col          = oc$pval
   )
-  if (!is.null(oc$eaf)     && oc$eaf     %in% names(out_sub)) oargs$eaf_col        <- oc$eaf
-  if (!is.null(oc$n)       && oc$n       %in% names(out_sub)) oargs$samplesize_col <- oc$n
-  if (!is.null(oc$chr)     && oc$chr     %in% names(out_sub)) oargs$chr_col        <- oc$chr
-  if (!is.null(oc$pos)     && oc$pos     %in% names(out_sub)) oargs$pos_col        <- oc$pos
-  if (!is.null(oc$ncase)   && oc$ncase   %in% names(out_sub)) oargs$ncase_col      <- oc$ncase
-  if (!is.null(oc$ncontrol)&& oc$ncontrol%in% names(out_sub)) oargs$ncontrol_col   <- oc$ncontrol
+  if (!is.null(oc$eaf)     && oc$eaf      %in% names(out_sub)) oargs$eaf_col        <- oc$eaf
+  if (!is.null(oc$n)       && oc$n        %in% names(out_sub)) oargs$samplesize_col <- oc$n
+  if (!is.null(oc$chr)     && oc$chr      %in% names(out_sub)) oargs$chr_col        <- oc$chr
+  if (!is.null(oc$pos)     && oc$pos      %in% names(out_sub)) oargs$pos_col        <- oc$pos
+  if (!is.null(oc$ncase)   && oc$ncase    %in% names(out_sub)) oargs$ncase_col      <- oc$ncase
+  if (!is.null(oc$ncontrol)&& oc$ncontrol %in% names(out_sub)) oargs$ncontrol_col   <- oc$ncontrol
 
   out_fmt         <- do.call(format_data, oargs)
   out_fmt$outcome <- out_name
 
   # ── 6. Harmonise ─────────────────────────────────────────────────────────
-  ts(" Harmonising (action = 3) ...")
+  ts("  Harmonising (action = 3) ...")
   dat    <- harmonise_data(exp_c, out_fmt, action = 3)
   dat_mr <- dat[dat$mr_keep, ]
   ts(sprintf("  Total: %d | Kept: %d | Removed: %d",
              nrow(dat), nrow(dat_mr), sum(!dat$mr_keep)))
 
-  if (any(!dat$mr_keep)) {
-    dat %>% filter(!mr_keep) %>%
-      count(palindromic, ambiguous, remove) %>% print()
-  }
   if (nrow(dat_mr) < MIN_IVS) { ts("  ✗ Not enough SNPs post-harmonisation"); return(NULL) }
 
   # ── 7. Steiger ────────────────────────────────────────────────────────────
@@ -644,7 +666,6 @@ run_direction <- function(
       (!"samplesize.outcome" %in% names(dat_mr) ||
        all(is.na(dat_mr$samplesize.outcome)))) {
     dat_mr$samplesize.outcome <- dat_mr$ncase.outcome + dat_mr$ncontrol.outcome
-    ts("  samplesize.outcome reconstruit depuis ncase + ncontrol ✓")
   }
 
   if ("ncase.exposure" %in% names(dat_mr) &&
@@ -652,7 +673,6 @@ run_direction <- function(
       (!"samplesize.exposure" %in% names(dat_mr) ||
        all(is.na(dat_mr$samplesize.exposure)))) {
     dat_mr$samplesize.exposure <- dat_mr$ncase.exposure + dat_mr$ncontrol.exposure
-    ts("  samplesize.exposure reconstruit depuis ncase + ncontrol ✓")
   }
 
   compute_r <- function(beta, eaf, pval, n, ncase, ncontrol,
@@ -662,7 +682,6 @@ run_direction <- function(
     if (is_binary) {
       if (is.null(ncase) || all(is.na(ncase)) ||
           is.null(ncontrol) || all(is.na(ncontrol))) {
-        ts(sprintf("  WARNING: %s is binary but ncase/ncontrol absent — falling back to get_r_from_pn", label))
         pval_c <- pmax(pmin(pval, 1 - 1e-15), 1e-300)
         n_c    <- pmax(n, 2L)
         r <- TwoSampleMR::get_r_from_pn(p = pval_c, n = n_c)
@@ -675,7 +694,6 @@ run_direction <- function(
       }
     } else {
       if (is.null(n) || all(is.na(n))) {
-        ts(sprintf("  WARNING: %s samplesize absent — r set to NA", label))
         return(rep(NA_real_, n_snps))
       }
       pval_c <- pmax(pmin(pval, 1 - 1e-15), 1e-300)
@@ -683,10 +701,7 @@ run_direction <- function(
       r <- TwoSampleMR::get_r_from_pn(p = pval_c, n = n_c)
     }
 
-    if (length(r) == 0 || length(r) != n_snps) {
-      ts(sprintf("  WARNING: %s compute_r length mismatch — r set to NA", label))
-      return(rep(NA_real_, n_snps))
-    }
+    if (length(r) == 0 || length(r) != n_snps) return(rep(NA_real_, n_snps))
     pmin(pmax(r, -0.9999), 0.9999)
   }
 
@@ -706,13 +721,6 @@ run_direction <- function(
     is_binary = out_binary, prevalence = out_prevalence, label = out_name
   )
 
-  ts(sprintf("  r.exposure: median = %.4f | NAs = %d  [%s]",
-             median(dat_mr$r.exposure, na.rm = TRUE), sum(is.na(dat_mr$r.exposure)),
-             if (exp_binary) "binary / get_r_from_lor" else "continuous / get_r_from_pn"))
-  ts(sprintf("  r.outcome:  median = %.4f | NAs = %d  [%s]",
-             median(dat_mr$r.outcome, na.rm = TRUE), sum(is.na(dat_mr$r.outcome)),
-             if (out_binary) "binary / get_r_from_lor" else "continuous / get_r_from_pn"))
-
   dir_res <- tryCatch(
     directionality_test(dat_mr),
     error = function(e) { ts("  ! directionality_test failed: ", conditionMessage(e)); NULL }
@@ -725,7 +733,7 @@ run_direction <- function(
 
   stg_dir  <- safe_col(dir_res, "correct_causal_direction")
   stg_pval <- safe_col(dir_res, "steiger_pval")
-  ts(sprintf("  Steiger directionality: correct = %s | p = %s", stg_dir, fmt_p(stg_pval)))
+  ts(sprintf("  Steiger: correct = %s | p = %s", stg_dir, fmt_p(stg_pval)))
 
   dat_use <- dat_mr
 
@@ -737,9 +745,11 @@ run_direction <- function(
     "mr_weighted_median"
   ))
 
+  ts(sprintf("  Méthodes MR disponibles : %s", paste(res$method, collapse = " | ")))
+
   # ── 9. Heterogeneity & pleiotropy ─────────────────────────────────────────
-  het   <- tryCatch(mr_heterogeneity(dat_use),  error = function(e) NULL)
-  pleio <- tryCatch(mr_pleiotropy_test(dat_use), error = function(e) NULL)
+  het   <- tryCatch(mr_heterogeneity(dat_use),  error = function(e) { ts("  ⚠ Heterogeneity: ", conditionMessage(e)); NULL })
+  pleio <- tryCatch(mr_pleiotropy_test(dat_use), error = function(e) { ts("  ⚠ Pleiotropy: ",   conditionMessage(e)); NULL })
 
   # ── 10. Radial MR ─────────────────────────────────────────────────────────
   ts("  Running Radial MR ...")
@@ -771,23 +781,15 @@ run_direction <- function(
   }, error = function(e) ts("  ! Plot error: ", conditionMessage(e)))
 
   # ── 13. Extract results ───────────────────────────────────────────────────
-  
   grp <- function(method_pattern) {
-  # Correspondance partielle → insensible aux variations de version
-  r <- res[grepl(method_pattern, res$method, ignore.case = TRUE), ]
-  if (nrow(r) == 0) list(b = NA_real_, se = NA_real_, pval = NA_real_)
-  else              list(b = r$b[1], se = r$se[1], pval = r$pval[1])
-}
+    r <- res[grepl(method_pattern, res$method, ignore.case = TRUE), ]
+    if (nrow(r) == 0) list(b = NA_real_, se = NA_real_, pval = NA_real_)
+    else              list(b = r$b[1],   se = r$se[1],  pval = r$pval[1])
+  }
 
-# Vérifier les noms réels dans res avant d'extraire
-ts(sprintf("  Méthodes MR disponibles : %s", paste(res$method, collapse = " | ")))
-
-ivw <- grp("Inverse variance weighted")  # capture toutes les variantes IVW
-eg  <- grp("MR Egger")
-wm  <- grp("Weighted median")
-
-  hi <- if (!is.null(het)) het[het$method == "Inverse variance weighted", ] else NULL
-  he <- if (!is.null(het)) het[het$method == "MR Egger", ]                  else NULL
+  ivw <- grp("Inverse variance weighted")
+  eg  <- grp("MR Egger")
+  wm  <- grp("Weighted median")
 
   cc <- check_concordance(ivw$b, ivw$pval, eg$b, eg$pval, wm$b, wm$pval)
 
@@ -795,17 +797,16 @@ wm  <- grp("Weighted median")
     exposure = exp_name,  outcome  = out_name,
     n_snps   = nrow(dat_use), f_median = f_median,
     ivw = ivw,
-    het_Q  = if (!is.null(hi) && nrow(hi) > 0) hi$Q[1]      else NA_real_,
-    het_Qp = if (!is.null(hi) && nrow(hi) > 0) hi$Q_pval[1] else NA_real_,
+    het_Q  = safe_het(het,  "Inverse variance weighted", "Q"),
+    het_Qp = safe_het(het,  "Inverse variance weighted", "Q_pval"),
     eg = eg,
-    eg_int    = if (!is.null(pleio)) pleio$egger_intercept[1] else NA_real_,
-    eg_int_se = if (!is.null(pleio)) pleio$se[1]              else NA_real_,
-    eg_int_p  = if (!is.null(pleio)) pleio$pval[1]            else NA_real_,
-    eg_het_p  = if (!is.null(he) && nrow(he) > 0) he$Q_pval[1] else NA_real_,
+    eg_int    = safe_pleio(pleio, "egger_intercept"),   # ← sécurisé
+    eg_int_se = safe_pleio(pleio, "se"),                # ← sécurisé
+    eg_int_p  = safe_pleio(pleio, "pval"),              # ← sécurisé
+    eg_het_p  = safe_het(het, "MR Egger", "Q_pval"),
     wm = wm, rad = rad,
     stg_dir = stg_dir, stg_pval = stg_pval,
     concordant = cc$ok, conc_reason = cc$reason
-    # analysis_type ajouté par la boucle après l'appel
   )
 }
 
@@ -814,22 +815,18 @@ wm  <- grp("Weighted median")
 # CHARGEMENT DES GWAS
 # =============================================================================
 
-# ── Traits cSVD ───────────────────────────────────────────────────────────────
 ts("Loading all cSVD GWAS ...")
 gwas_list <- list()
 
 for (trait in csvd_traits) {
   ts(sprintf("  Loading %s ...", trait$name))
-
   dat <- read_gwaslab(trait$file, min_eaf = MIN_EAF)
 
   if (!"N" %in% names(dat)) {
     if ("N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat)) {
       dat$N <- dat$N_CASE + dat$N_CONTROL
-      ts(sprintf("    N reconstruit : %d", dat$N[1]))
     } else if (!is.null(trait$n_manual)) {
       dat$N <- trait$n_manual
-      ts(sprintf("    N manuel : %d", trait$n_manual))
     }
   }
 
@@ -837,26 +834,21 @@ for (trait in csvd_traits) {
   ts(sprintf("    %d SNPs ✓", nrow(dat)))
 }
 
-csvd_loaded <- gwas_list   # alias utilisé par la boucle
+csvd_loaded <- gwas_list
 
-
-# ── Expositions ───────────────────────────────────────────────────────────────
 ts("Loading exposure GWAS ...")
 exp_loaded <- list()
 
 for (exp in exposures) {
   ts(sprintf("  Chargement : %s", exp$name))
-  dat <- tryCatch(
-    {
-      d <- read_gwaslab(exp$file, min_eaf = MIN_EAF)
-      d <- inject_n(d, exp)    # ← REMPLACE l'ancien bloc if/n_manual
-      d
-    },
-    error = function(e) {
-      ts(sprintf("  ✗ Échec chargement %s : %s", exp$name, conditionMessage(e)))
-      NULL
-    }
-  )
+  dat <- tryCatch({
+    d <- read_gwaslab(exp$file, min_eaf = MIN_EAF)
+    d <- inject_n(d, exp)
+    d
+  }, error = function(e) {
+    ts(sprintf("  ✗ Échec chargement %s : %s", exp$name, conditionMessage(e)))
+    NULL
+  })
   if (!is.null(dat)) {
     exp_loaded[[exp$name]] <- list(gwas = dat, cfg = exp)
     ts(sprintf("    %s SNPs ✓", format(nrow(dat), big.mark = ",")))
@@ -869,14 +861,14 @@ ts(sprintf("  %d / %d expositions chargées", length(exp_loaded), length(exposur
 # BOUCLE BIDIRECTIONNELLE
 # =============================================================================
 
-all_results         <- list()
-result_rows         <- list()
-out_tsv_incremental <- file.path(OUTDIR, "MR_results_incremental.tsv")
-out_xlsx_incremental<- file.path(OUTDIR, "MR_results_incremental.xlsx")
-header_written      <- FALSE
-N_PAIRS             <- length(exp_loaded) * length(csvd_loaded)
-pair_i              <- 0L
-clean_name          <- function(s) gsub("[^A-Za-z0-9]", "_", s)
+all_results          <- list()
+result_rows          <- list()
+out_tsv_incremental  <- file.path(OUTDIR, "MR_results_incremental.tsv")
+out_xlsx_incremental <- file.path(OUTDIR, "MR_results_incremental.xlsx")
+header_written       <- FALSE
+N_PAIRS              <- length(exp_loaded) * length(csvd_loaded)
+pair_i               <- 0L
+clean_name           <- function(s) gsub("[^A-Za-z0-9]", "_", s)
 
 for (exp_item in exp_loaded) {
 
@@ -884,7 +876,7 @@ for (exp_item in exp_loaded) {
   exp_cfg  <- exp_item$cfg
   exp_cm   <- build_col_map(exp_gwas)
 
-  for (csvd_item in csvd_loaded) {    # ← boucle interne OUVRE ici
+  for (csvd_item in csvd_loaded) {
 
     csvd_gwas <- csvd_item$gwas
     csvd_cfg  <- csvd_item$cfg
@@ -901,7 +893,7 @@ for (exp_item in exp_loaded) {
     key_A <- sprintf("%s__to__%s", clean_name(exp_cfg$name),  clean_name(csvd_cfg$name))
     key_B <- sprintf("%s__to__%s", clean_name(csvd_cfg$name), clean_name(exp_cfg$name))
 
-    # ── Direction A : exposition → cSVD ──────────────────────────────────
+    # ── Direction A ───────────────────────────────────────────────────────
     ts(sprintf("  ── Direction A [%s] : %s → %s", type_A, exp_cfg$name, csvd_cfg$name))
 
     res_A <- tryCatch(
@@ -928,12 +920,10 @@ for (exp_item in exp_loaded) {
       data.table::fwrite(row_A, out_tsv_incremental,
                          sep = "\t", append = header_written, col.names = !header_written)
       header_written <- TRUE
-      ts(sprintf("  ✓ TSV incrémental → %s", basename(out_tsv_incremental)))
       append_to_xlsx(row_A, out_xlsx_incremental)
     }
 
-    # ── Direction B : cSVD → exposition ──────────────────────────────────
-    # ↑ DOIT être ici, DANS la boucle interne, PAS après la fermeture }
+    # ── Direction B ───────────────────────────────────────────────────────
     ts(sprintf("  ── Direction B [%s] : %s → %s", type_B, csvd_cfg$name, exp_cfg$name))
 
     res_B <- tryCatch(
@@ -959,11 +949,10 @@ for (exp_item in exp_loaded) {
       result_rows[[key_B]] <- row_B
       data.table::fwrite(row_B, out_tsv_incremental,
                          sep = "\t", append = TRUE, col.names = FALSE)
-      ts(sprintf("  ✓ TSV incrémental → %s", basename(out_tsv_incremental)))
       append_to_xlsx(row_B, out_xlsx_incremental)
     }
 
-  }   # ← boucle interne FERME ici (Direction B doit être AU-DESSUS de cette ligne)
+  }
 }
 
 ts(sprintf("══ Boucle terminée : %d directions lancées ══", length(all_results)))
@@ -974,33 +963,47 @@ ts(sprintf("══ Boucle terminée : %d directions lancées ══", length(all
 # =============================================================================
 
 valid_results <- Filter(Negate(is.null), all_results)
-N_TESTS       <- length(valid_results)
-
-ts(sprintf("  %d directions valides / %d lancées — N_TESTS (Bonferroni) = %d",
-           N_TESTS, length(all_results), N_TESTS))
 
 tbl <- do.call(rbind, lapply(names(valid_results), function(key) {
   d     <- valid_results[[key]]
   atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown"
-  make_row(d, analysis_type = atype, bonf_n = N_TESTS)   # bonf_n renseigné ici
+  make_row(d, analysis_type = atype)
+}))
+
+tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ]
+tbl_sensitivity <- tbl[tbl$Analysis_type == "sensitivity_reverse", ]
+
+N_TESTS <- nrow(tbl_primary) # NB d'analyses primaires, sachant qu'on va en réalité corriger pour les tests indépendants (à faire à la fin)
+ts(sprintf("  N_TESTS (Bonferroni) = %d", N_TESTS))
+
+if (N_TESTS == 0) {
+  warning("⚠ N_TESTS = 0 — vérifier primary_role dans les expositions")
+  N_TESTS <- 1L
+}
+
+
+
+# Recalculer Bonferroni maintenant que N_TESTS est connu
+tbl <- do.call(rbind, lapply(names(valid_results), function(key) {
+  d     <- valid_results[[key]]
+  atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown"
+  make_row(d, analysis_type = atype, bonf_n = N_TESTS)
 }))
 
 tbl <- tbl[order(tbl$Analysis_type != "primary", tbl$IVW_p_raw, na.last = TRUE), ]
 rownames(tbl) <- NULL
 
-# ── Export TSV ────────────────────────────────────────────────────────────────
-out_tsv <- file.path(OUTDIR, "FINAL_bidirectional_MR_all_exposures.tsv")
-fwrite(tbl, out_tsv, sep = "\t")
-ts(sprintf("  TSV sauvegardé : %d lignes → %s", nrow(tbl), basename(out_tsv)))
-
 tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ]
 tbl_sensitivity <- tbl[tbl$Analysis_type == "sensitivity_reverse", ]
 
+# ── Export TSV ────────────────────────────────────────────────────────────────
+out_tsv <- file.path(OUTDIR, "FINAL_bidirectional_MR_all_exposures.tsv")
+fwrite(tbl, out_tsv, sep = "\t")
 fwrite(tbl_primary,     file.path(OUTDIR, "FINAL_MR_primary.tsv"),             sep = "\t")
 fwrite(tbl_sensitivity, file.path(OUTDIR, "FINAL_MR_sensitivity_reverse.tsv"), sep = "\t")
 
-ts(sprintf("  Primary     : %d lignes", nrow(tbl_primary)))
-ts(sprintf("  Sensitivity : %d lignes", nrow(tbl_sensitivity)))
+ts(sprintf("  TSV : %d lignes | Primary : %d | Sensitivity : %d",
+           nrow(tbl), nrow(tbl_primary), nrow(tbl_sensitivity)))
 
 
 # ── Export XLSX ───────────────────────────────────────────────────────────────
@@ -1020,20 +1023,24 @@ if (HAS_XLSX) {
       ts(sprintf("  ⚠ Feuille '%s' vide — non créée", sheet_name))
       return(invisible(NULL))
     }
+
     openxlsx::addWorksheet(wb, sheet_name)
     openxlsx::writeData(wb, sheet_name, data, headerStyle = header_style)
 
     bonf_thresh <- 0.05 / N_TESTS
 
     sig_rows  <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < 0.05)
+    bonf_rows <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < bonf_thresh)
+
     if (length(sig_rows) > 0)
       openxlsx::addStyle(wb, sheet_name, style = sig_style,
-                         rows = sig_rows + 1, cols = seq_len(ncol(data)), gridExpand = TRUE)
+                         rows = sig_rows + 1, cols = seq_len(ncol(data)),
+                         gridExpand = TRUE)
 
-    bonf_rows <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < bonf_thresh)
     if (length(bonf_rows) > 0)
       openxlsx::addStyle(wb, sheet_name, style = bonf_style,
-                         rows = bonf_rows + 1, cols = seq_len(ncol(data)), gridExpand = TRUE)
+                         rows = bonf_rows + 1, cols = seq_len(ncol(data)),
+                         gridExpand = TRUE)
 
     openxlsx::setColWidths(wb, sheet_name, cols = seq_len(ncol(data)), widths = "auto")
     openxlsx::freezePane(wb, sheet_name, firstRow = TRUE)
@@ -1051,14 +1058,15 @@ if (HAS_XLSX) {
   ts(sprintf("  XLSX sauvegardé → %s", basename(out_xlsx)))
 
 } else {
-  ts("  ⚠ openxlsx non disponible — mamba install -c conda-forge r-openxlsx")
+  ts("  ⚠ openxlsx non disponible")
 }
 
 
+# ── Résumé final ──────────────────────────────────────────────────────────────
 ts("═══ All done ═══")
-ts(sprintf("  N total directions  : %d", length(all_results)))
-ts(sprintf("  N valides           : %d", N_TESTS))
-ts(sprintf("  N primary           : %d", nrow(tbl_primary)))
-ts(sprintf("  N sensitivity       : %d", nrow(tbl_sensitivity)))
-ts(sprintf("  Seuil Bonferroni    : %.2e", 0.05 / N_TESTS))
-ts(sprintf("  Résultats → %s",  OUTDIR))
+ts(sprintf("  N total directions : %d", length(all_results)))
+ts(sprintf("  N valides          : %d", length(valid_results)))
+ts(sprintf("  N primary          : %d", nrow(tbl_primary)))
+ts(sprintf("  N sensitivity      : %d", nrow(tbl_sensitivity)))
+ts(sprintf("  Seuil Bonferroni   : %.2e", 0.05 / N_TESTS))
+ts(sprintf("  Résultats → %s", OUTDIR))

@@ -3,8 +3,8 @@ library(data.table)
 library(dplyr)
 library(ggplot2)
 
-HAS_RADIAL <- requireNamespace("RadialMR", quietly = TRUE)
-HAS_XLSX   <- requireNamespace("openxlsx", quietly = TRUE)
+HAS_RADIAL <- requireNamespace("RadialMR", quietly = TRUE)  #retourne true si le radialMR est installé sans le charger
+HAS_XLSX   <- requireNamespace("openxlsx", quietly = TRUE) #retourne true si le xlsx est chargé 
 
 proxy_url <- "http://proxy-icm:3128"
 Sys.setenv(https_proxy = proxy_url)
@@ -196,13 +196,13 @@ fmt_bse <- function(b, se, d = 4) {
   se <- suppressWarnings(as.numeric(se))
   if (is.na(b) || is.na(se)) return(NA_character_)
   sprintf("%.*f (%.*f)", d, b, d, se)
-}
+} #Formate un beta et son erreur standard, avec d décimal 
 
 fmt_p <- function(p) {
   if (is.null(p) || length(p) == 0) return(NA_character_)
   p <- suppressWarnings(as.numeric(p[1]))
   if (is.na(p))  return(NA_character_)
-  if (p < 0.001) formatC(p, format = "e", digits = 2)
+  if (p < 0.001) formatC(p, format = "e", digits = 2) #notation scientifique si < 0.001
   else           as.character(round(p, 3))
 }
 
@@ -220,11 +220,12 @@ safe_numeric <- function(x) {
   x
 }
 
+#permettent de retourner NA si les tests de pléiotropie et d'hétérogénéité n'ont pas pu être effectué 
 safe_pleio <- function(pleio, col) {
-  if (is.null(pleio) || !is.data.frame(pleio) || nrow(pleio) == 0) return(NA_real_)
-  if (!col %in% names(pleio)) return(NA_real_)
-  v <- pleio[[col]][1]
-  if (is.null(v) || length(v) == 0) return(NA_real_)
+  if (is.null(pleio) || !is.data.frame(pleio) || nrow(pleio) == 0) return(NA_real_)  # test échoué
+  if (!col %in% names(pleio)) return(NA_real_) # format inattendu
+  v <- pleio[[col]][1] # format inattendu
+  if (is.null(v) || length(v) == 0) return(NA_real_)  # colonne absente
   suppressWarnings(as.numeric(v))
 }
 
@@ -242,6 +243,7 @@ check_palindromic <- function(EA, NEA) {
   (EA == "C" & NEA == "G")
 }
 
+#build_col_map permet à run_direction d'être une fonction générique qui fonctionne avec n'importe quel fichier GWAS dans les deux directions, sans jamais avoir à vérifier elle-même quelles colonnes existent.
 build_col_map <- function(dat) {
   list(
     rsid     = if ("rsID"      %in% names(dat)) "rsID"      else NULL,
@@ -258,6 +260,10 @@ build_col_map <- function(dat) {
     pos      = if ("POS"       %in% names(dat)) "POS"       else NULL
   )
 }
+
+       
+
+      
 #cfg = configuration du trait 
 inject_n <- function(dat, cfg) {
 
@@ -265,12 +271,12 @@ inject_n <- function(dat, cfg) {
   if (isTRUE(cfg$binary)) {
 
     if (!"N_CASE" %in% names(dat) || all(is.na(dat$N_CASE))) { #Vérifie si N_CASE est absent du fichier OU entièrement NA
-      if (!is.null(cfg$n_cases_manual)) {  #Si vous avez renseigné n_cases_manual dans la config → l'injecte dans toutes les lignes
-        dat$N_CASE <- cfg$n_cases_manual
+      if (!is.null(cfg$n_cases_manual)) {   
+        dat$N_CASE <- cfg$n_cases_manual #njecte la valeur manuelle dans toutes les lignes du dataframe si vide 
         ts(sprintf("    N_CASE    (manuel) : %s",
                    format(cfg$n_cases_manual, big.mark = ",")))
       } else {
-        ts(sprintf("    ⚠ [%s] N_CASE absent", cfg$name))
+        ts(sprintf("    ⚠ [%s] N_CASE absent", cfg$name)) #Si pas de valeur manuelle non plus → affiche un avertissement. 
       }
     }
 
@@ -282,11 +288,12 @@ inject_n <- function(dat, cfg) {
       } else {
         ts(sprintf("    ⚠ [%s] N_CONTROL absent", cfg$name))
       }
-    }
+    } # Exactement la même logique que pour N_CASE, mais pour les contrôles.
+
 
     if ((!"N" %in% names(dat) || all(is.na(dat$N))) && #Si N total absent → le recalcule = cas + contrôles
-        "N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat) &&
-        !all(is.na(dat$N_CASE)) && !all(is.na(dat$N_CONTROL))) {
+        "N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat) && #et les colonnes case and control remplies 
+        !all(is.na(dat$N_CASE)) && !all(is.na(dat$N_CONTROL))) { 
       dat$N <- dat$N_CASE + dat$N_CONTROL
       ts(sprintf("    N total reconstruit : %s", format(dat$N[1], big.mark = ",")))
     }
@@ -294,10 +301,10 @@ inject_n <- function(dat, cfg) {
   } else {
 
     n_val <- if (!is.null(cfg$n_total_manual)) cfg$n_total_manual else cfg$n_manual
-
+#si pas valeur de N 
     if (!"N" %in% names(dat) || all(is.na(dat$N))) {
       if (!is.null(n_val)) {
-        dat$N <- n_val
+        dat$N <- n_val #injecte si valeur disponible, avertit sinon.
         ts(sprintf("    N total   (manuel) : %s", format(n_val, big.mark = ",")))
       } else {
         ts(sprintf("    ⚠ [%s] N total absent", cfg$name))
@@ -309,7 +316,7 @@ inject_n <- function(dat, cfg) {
 }
 
 # ── Sauvegarde XLSX incrémentale ──────────────────────────────────────────────
-append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale
+append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale, à chaque direction terminée, on ajoute une ligne au fichier Excel existant.
 
   if (!HAS_XLSX) return(invisible(NULL))
 

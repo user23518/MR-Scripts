@@ -962,7 +962,7 @@ for (exp in exposures) { #Itère sur chacune des expositions définies (BMI, lip
   dat <- tryCatch({
     d <- read_gwaslab(exp$file, min_eaf = MIN_EAF) #Lit le fichier GWAS de l'exposition avec filtre EAF.
     d <- inject_n(d, exp) #Injecte les effectifs manquants (N_CASE, N_CONTROL, N) depuis la configuration manuelle si nécessaire.
-    d
+    d #dat devient d 
   }, error = function(e) {
     ts(sprintf("  ✗ Échec chargement %s : %s", exp$name, conditionMessage(e)))
     NULL
@@ -990,7 +990,7 @@ clean_name           <- function(s) gsub("[^A-Za-z0-9]", "_", s) #Fonction utili
 
 for (exp_item in exp_loaded) { #Pour chaque exposition, itère sur les 4 traits cSVD → crée toutes les combinaisons.
 
-  exp_gwas <- exp_item$gwas #Extrait le dataframe GWAS de l'exposition.
+  exp_gwas <- exp_item$gwas #Extrait le dataframe GWAS de l'exposition de exp_loaded
   exp_cfg  <- exp_item$cfg #Extrait la configuration de l'exposition (binary, prev, primary_role, etc.).
   exp_cm   <- build_col_map(exp_gwas)  #Construit la carte des colonnes pour l'exposition (vérifie quelles colonnes optionnelles existent).
 
@@ -1003,11 +1003,13 @@ for (exp_item in exp_loaded) { #Pour chaque exposition, itère sur les 4 traits 
     pair_i <- pair_i + 1L #Incrémente le compteur et affiche la progression (ex: "══ Paire 5 / 100 : BMI ↔ WMH Shiva ══").
     ts(sprintf("══ Paire %d / %d : %s ↔ %s ══",
                pair_i, N_PAIRS, exp_cfg$name, csvd_cfg$name))
-
+    
+#Pour ranger les directions en fonction de leur caractère primaire ou secondaire 
     primary_role <- if (!is.null(exp_cfg$primary_role)) exp_cfg$primary_role else "exposure" #Récupère primary_role depuis la config de l'exposition.
-    type_A <- if (primary_role == "exposure") "primary"            else "sensitivity_reverse" #on teste si l'exposition cause le cSVD) sinon # c'est la direction de sensibilité (reverse)
+    type_A <- if (primary_role == "exposure") "primary"            else "sensitivity_reverse" #on teste si l'exposition cause le cSVD sinon # c'est la direction de sensibilité (reverse)
     type_B <- if (primary_role == "outcome")  "primary"            else "sensitivity_reverse"    #c'est la direction primaire (on teste si le cSVD cause l'exposition) sinon → c'est la direction de sensibilité
 
+#Créer le nom des fichiers
     key_A <- sprintf("%s__to__%s", clean_name(exp_cfg$name),  clean_name(csvd_cfg$name)) #Crée des clés uniques pour stocker les résultats (le nom) 
     key_B <- sprintf("%s__to__%s", clean_name(csvd_cfg$name), clean_name(exp_cfg$name))
 
@@ -1029,7 +1031,7 @@ for (exp_item in exp_loaded) { #Pour chaque exposition, itère sur les 4 traits 
       }
     )
 
-    if (!is.null(res_A)) res_A$analysis_type <- type_A #Ajoute le type d'analyse 
+    if (!is.null(res_A)) res_A$analysis_type <- type_A #Ajoute le type d'analyse (primaire ou sensibilité)
     all_results[[key_A]] <- res_A #dans all_results sous la clé unique
 
     if (!is.null(res_A)) {
@@ -1083,13 +1085,21 @@ ts(sprintf("══ Boucle terminée : %d directions lancées ══", length(all
 valid_results <- Filter(Negate(is.null), all_results)  #on garde uniquement les directions avec résultats valides
 
 #applique make row à chaque direction avec rbind qui empile les résultats 
-tbl <- do.call(rbind, lapply(names(valid_results), function(key) {
+#rbind empile les dataframes 
+# List apply = applique une fonction à chaque élément → retourne toujours une liste
+           
+tbl <- do.call(rbind, lapply(names(valid_results), 
+  function(key) {
   d     <- valid_results[[key]] #Récupère la liste de résultats pour cette direction
-  atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown" #Récupère le type d'analyse ("primary" ou "sensitivity_reverse")
+  atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown" 
+    #Récupère le type d'analyse ("primary" ou "sensitivity_reverse")
   make_row(d, analysis_type = atype)
+  #Convertit la liste de résultats en une ligne de data.frame
 }))
 
 tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ]
+
+           
 tbl_sensitivity <- tbl[tbl$Analysis_type == "sensitivity_reverse", ]
 
 N_TESTS <- nrow(tbl_primary) # NB d'analyses primaires, sachant qu'on va en réalité corriger pour les tests indépendants (à faire à la fin)

@@ -206,6 +206,8 @@ fmt_p <- function(p) {
   else           as.character(round(p, 3))
 }
 
+
+#fonctions qui gèrent les valeurs NULL, les vecteurs vides et les non-numériques, retournant NA_real_ en cas de problème.
 safe_round <- function(x, digits) {
   if (is.null(x) || length(x) == 0) return(NA_real_)
   x <- suppressWarnings(as.numeric(x[1]))
@@ -243,7 +245,11 @@ check_palindromic <- function(EA, NEA) {
   (EA == "C" & NEA == "G")
 }
 
+<<<<<<< HEAD
 #build_col_map permet à run_direction d'être une fonction générique qui fonctionne avec n'importe quel fichier GWAS dans les deux directions, sans jamais avoir à vérifier elle-même quelles colonnes existent.
+=======
+#construit la liste des arguments pour TWOsampleMR
+>>>>>>> 730430f (2026-06-22 13:13 - update)
 build_col_map <- function(dat) {
   list(
     rsid     = if ("rsID"      %in% names(dat)) "rsID"      else NULL,
@@ -316,7 +322,14 @@ inject_n <- function(dat, cfg) {
 }
 
 # ── Sauvegarde XLSX incrémentale ──────────────────────────────────────────────
+<<<<<<< HEAD
 append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale, à chaque direction terminée, on ajoute une ligne au fichier Excel existant.
+=======
+#à chaque nouvelle direction MR analysée, ajoute une ligne sans recréer tout le fichier.
+
+
+append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale
+>>>>>>> 730430f (2026-06-22 13:13 - update)
 
   if (!HAS_XLSX) return(invisible(NULL))
 
@@ -324,7 +337,7 @@ append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale, à chaqu
 
     tbl_inc <- if (file.exists(xlsx_path)) {
       tryCatch(
-        openxlsx::read.xlsx(xlsx_path, sheet = "Results"),
+        openxlsx::read.xlsx(xlsx_path, sheet = "Results"), # charge son contenu actuel.
         error = function(e) {
           ts(sprintf("  ⚠ XLSX incrémental illisible — réinitialisé (%s)",
                      conditionMessage(e)))
@@ -348,13 +361,13 @@ append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale, à chaqu
       fontColour = "#FFFFFF", fgFill = "#2F5597",
       halign = "CENTER", textDecoration = "Bold", wrapText = TRUE
     )
-    s_style <- openxlsx::createStyle(fgFill = "#E2EFDA") #ligne significative 
+    s_style <- openxlsx::createStyle(fgFill = "#E2EFDA") #Style pour les lignes significatives (p < 0.05) : fond vert clair.
 
     wb <- openxlsx::createWorkbook()
     openxlsx::addWorksheet(wb, "Results")
     openxlsx::writeData(wb, "Results", tbl_inc, headerStyle = h_style)
 
-    sig_rows <- which(!is.na(tbl_inc$IVW_p_raw) & tbl_inc$IVW_p_raw < 0.05)
+    sig_rows <- which(!is.na(tbl_inc$IVW_p_raw) & tbl_inc$IVW_p_raw < 0.05) #Identifie les lignes significatives (IVW p < 0.05) et applique le style vert. + 1 car la ligne 1 est l'en-tête.
     if (length(sig_rows) > 0)
       openxlsx::addStyle(wb, "Results",
                          style      = s_style,
@@ -376,9 +389,9 @@ append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale, à chaqu
   })
 }
 
-# ── make_row — version sécurisée ──────────────────────────────────────────────
+# ── make_row   ──────────────────────────────────────────────
 make_row <- function(d, analysis_type = "primary", bonf_n = NA_integer_) {
-
+#Convertit les résultats d'une direction MR en une ligne de dataframe pour le tableau final.
 
 #p-value Bonferroni = p × N_tests (plafonné à 1)
   bonfp <- tryCatch({
@@ -397,6 +410,9 @@ make_row <- function(d, analysis_type = "primary", bonf_n = NA_integer_) {
     IVW_p                      = fmt_p(d$ivw$pval),
     IVW_p_raw                  = safe_numeric(d$ivw$pval),
     IVW_p_Bonferroni           = fmt_p(bonfp),
+    IVW_FE_Beta_SE             = fmt_bse(d$ivw_fe$b, d$ivw_fe$se),  
+    IVW_FE_p                   = fmt_p(d$ivw_fe$pval),               
+    IVW_FE_p_raw               = safe_numeric(d$ivw_fe$pval), 
     Concordant_sensitivity     = d$concordant,
     Concordance_reason         = d$conc_reason,
     Q                          = safe_round(d$het_Q,  2),
@@ -432,12 +448,16 @@ read_gwaslab <- function(path, min_eaf = NULL, verbose = TRUE) {
   if (verbose)
     ts(sprintf("  Columns : %s", paste(names(dt), collapse = ", ")))
 
+# ── Validate required gwaslab columns ─────────────────────────────────────
+
   required <- c("SNPID", "CHR", "POS", "NEA", "EA", "BETA", "SE", "P")
   missing  <- setdiff(required, names(dt))
   if (length(missing) > 0)
     stop("Missing required gwaslab columns: ", paste(missing, collapse = ", "))
 
   n0 <- nrow(dt)
+
+  # ── rsID present and non-empty ────────────────────────────────────────────
 
   if ("rsID" %in% names(dt)) {
     dt <- dt[!is.na(dt$rsID) & dt$rsID != "" & dt$rsID != ".", ]
@@ -447,6 +467,8 @@ read_gwaslab <- function(path, min_eaf = NULL, verbose = TRUE) {
                  format(nrow(dt),      big.mark = ",")))
     n0 <- nrow(dt)
   }
+
+# ── EAF filter ──────────────────────────────────────────
 
   if (!is.null(min_eaf) && "EAF" %in% names(dt)) {
     n_before <- nrow(dt)
@@ -461,29 +483,38 @@ read_gwaslab <- function(path, min_eaf = NULL, verbose = TRUE) {
   dt
 }
 
+# ── Radial MR: detect outliers via Cochran Q, re-run IVW without them ────────
 
 run_radial <- function(dat) {
   empty <- list(b = NA_real_, se = NA_real_, pval = NA_real_,
-                nsnp = NA_integer_, n_out = 0L)
+                nsnp = NA_integer_, n_out = 0L)# liste vide que la fonction renverra si une étape échoue pour éviter que le pipeline plante en recevant un objet mal formé 
+#dat =data.frame issu de harmonise_data () 
 
-  if (!HAS_RADIAL || nrow(dat) < 4) return(empty)
+  if (!HAS_RADIAL || nrow(dat) < 4) return(empty) # si pas radial package ou moins de 4 SNPs → résultat non fiable, on ne commence pas le radial
 
   tryCatch({
     if (any(is.na(dat$beta.exposure)) || any(is.na(dat$beta.outcome)) ||
         any(is.na(dat$se.exposure))   || any(is.na(dat$se.outcome))) {
       ts("  RadialMR: NA values in beta/se — skipping")
       return(empty)
-    }
+    }#si b ou se manquant dans exposure ou outcome, on arrête la fonction
 
     ri <- RadialMR::format_radial(
       BXG  = dat$beta.exposure, BYG  = dat$beta.outcome,
       seBXG = dat$se.exposure,  seBYG = dat$se.outcome,
       RSID  = dat$SNP
-    )
+    )#formatage des noms des colonnes pour radial MR 
 
-    if (is.null(ri) || nrow(ri) == 0) return(empty)
+
+
+    if (is.null(ri) || nrow(ri) == 0) return(empty)  # ← vérifier que le formatage a bien fonctionné 
 
     out <- RadialMR::ivw_radial(ri, alpha = 0.05, weights = 3)
+  #on effectue l'analyse radial MR 
+
+
+
+# Étape 1 : identifier les outliers
 
     if (is.null(out$outliers) || nrow(out$outliers) == 0) {
       ts("  RadialMR: 0 outliers — primary IVW stands")
@@ -491,18 +522,25 @@ run_radial <- function(dat) {
     }
 
     bad       <- as.character(out$outliers$SNP)
-    ts(sprintf("  RadialMR: %d outlier(s): %s", length(bad), paste(bad, collapse = ", ")))
+    ts(sprintf("  RadialMR: %d outlier(s): %s", length(bad), paste(bad, collapse = ", ")))  # collapse = séparateur des rsID 
+
+
+# Étape 2 : retirer les outliers
 
     clean_dat <- dat[!dat$SNP %in% bad, ]
     if (nrow(clean_dat) < MIN_IVS) return(modifyList(empty, list(n_out = length(bad))))
 
-    r2 <- mr(clean_dat, method_list = "mr_ivw")
-    list(b = r2$b[1], se = r2$se[1], pval = r2$pval[1],
+
+# Étape 3 : recalculer IVW sans les outliers
+
+    r2 <- mr(clean_dat, method_list = "mr_ivw")  # re-run mr in twosampleMR for IVW after excluding outliers
+    list(b = r2$b[1], se = r2$se[1], pval = r2$pval[1], #[1] on ne garde que le premier terme de chaque colonne (1ère méthode = ivW)
          nsnp = nrow(clean_dat), n_out = length(bad))
 
   }, error = function(e) { ts("  RadialMR error: ", conditionMessage(e)); empty })
 }
 
+# ── Concordance: do sensitivity analyses support the primary IVW? ─────────────
 
 check_concordance <- function(ivw_b, ivw_p, eg_b, eg_p, wm_b, wm_p, a = 0.05) {
   issues <- character(0)
@@ -513,9 +551,14 @@ check_concordance <- function(ivw_b, ivw_p, eg_b, eg_p, wm_b, wm_p, a = 0.05) {
   wm_b  <- safe_numeric(wm_b)
   wm_p  <- safe_numeric(wm_p)
 
+   # ── MR-Egger ────────────────────────────────────────── #vérifie que MR-Egger a produit un résultat exploitable puis compare le signe de eg_b et ivw_b 
+
   if (!is.na(ivw_p) && ivw_p < a) {
     if (!is.na(eg_b) && !is.na(ivw_b) && sign(eg_b) != sign(ivw_b))
       issues <- c(issues, "MR-Egger direction discordant")
+ 
+ # ── Weighted Median ─────────────────────────────────── # on  compare le signe de wm_b et ivw_b  
+
     if (!is.na(wm_b) && !is.na(ivw_b) && sign(wm_b) != sign(ivw_b))
       issues <- c(issues, "Weighted median direction discordant")
   }
@@ -528,7 +571,11 @@ check_concordance <- function(ivw_b, ivw_p, eg_b, eg_p, wm_b, wm_p, a = 0.05) {
 
 
 # =============================================================================
-# CORE FUNCTION
+# CORE FUNCTION: run one MR direction (last version)
+#
+# ec / oc : named lists of column mappings
+#   Required: snp, beta, se, ea, oa, eaf, pval, n, chr, pos
+#   Outcome only (optional): ncase, ncontrol
 # =============================================================================
 
 run_direction <- function(
@@ -537,39 +584,45 @@ run_direction <- function(
     ec, oc,
     exp_units      = "SD",
     out_units      = "log odds",
-    exp_binary     = FALSE,
+    exp_binary     = FALSE, # par défaut les 2 traits sont continus
     out_binary     = FALSE,
     exp_prevalence = NULL,
     out_prevalence = NULL
 ) {
   SEP <- paste(rep("─", 62), collapse = "")
   ts(SEP); ts("  ", exp_name, "  →  ", out_name); ts(SEP)
+  #fabrique une ligne de séparation visuelle "----"
+
+
+ # ── Validate binary/prevalence consistency ──────────────────────────────
 
   if (exp_binary && is.null(exp_prevalence))
-    stop("exp_prevalence required when exp_binary = TRUE")
+    stop("exp_prevalence required when exp_binary = TRUE") # Si exposition binaire MAIS prévalence oubliée → arrêt immédiat avec message clair, si exp binary = TRUE et rien dans prevalence 
   if (out_binary && is.null(out_prevalence))
     stop("out_prevalence required when out_binary = TRUE")
 
   # ── 1. Instrument selection ───────────────────────────────────────────────
   pv  <- exp_gwas[[ec$pval]]
   ivs <- exp_gwas[!is.na(pv) & pv < PVAL_IV, ]
-  ts(sprintf("  GW-sig (p < 5e-8): %d SNPs", nrow(ivs)))
+  ts(sprintf("  GW-sig (p < 5e-8): %d SNPs", nrow(ivs))) #on ne garde que les SNPS significatifs de l'exposure 
+
 
   if (nrow(ivs) < MIN_IVS) {
-    ivs <- exp_gwas[!is.na(pv) & pv < 1e-6, ]
+    ivs <- exp_gwas[!is.na(pv) & pv < 1e-6, ] # Si moins de 3 SNPs genome-wide significatifs → essaie un seuil plus souple de p value 
     ts(sprintf("  Relaxed (p < 1e-6): %d SNPs", nrow(ivs)))
   }
   if (nrow(ivs) < MIN_IVS) { ts("  ✗ Not enough IVs — skipping"); return(NULL) }
 
-  f_all    <- (ivs[[ec$beta]] / ivs[[ec$se]])^2
-  f_median <- round(median(f_all, na.rm = TRUE), 1)
+  f_all    <- (ivs[[ec$beta]] / ivs[[ec$se]])^2 # Calcule la F-statistique pour chaque SNP = mesure la force de chaque instrument
+  f_median <- round(median(f_all, na.rm = TRUE), 1) #Calcule la médiane des F-stats — arrondie à 1 décimale, calculer une F‑stat pour chaque instrument (dans f_all), la médiane (force globale), la valeur minimale (instrument le plus faible), le nombre d’instruments avec F < 10 (instruments faibles),
   ts(sprintf("  F-stat: median = %.1f | min = %.1f | n(F < 10) = %d",
              f_median, min(f_all, na.rm = TRUE), sum(f_all < 10, na.rm = TRUE)))
 
   # ── Availability filter ───────────────────────────────────────────────────
-  avail_rsid <- ivs[[ec$rsid]] %in% out_gwas[[oc$rsid]]
-  n_avail    <- sum(avail_rsid)
-  n_missing  <- nrow(ivs) - n_avail
+  avail_rsid <- ivs[[ec$rsid]] %in% out_gwas[[oc$rsid]]  #Pour chaque SNP instrument — est-il présent dans l'outcome ? on prend les rsid de ivs (snps significatifs) qu'on vérifie dans les rsid de l'outcome 
+  n_avail    <- sum(avail_rsid)   # Compte les SNPs disponibles 
+  n_missing  <- nrow(ivs) - n_avail #on calcule le nb de SNPs retirés 
+
 
   ts(sprintf("  rsID match : %d / %d SNPs found  |  %d missing (%.1f%%)",
              n_avail, nrow(ivs), n_missing, 100 * n_missing / nrow(ivs)))
@@ -577,19 +630,29 @@ run_direction <- function(
   if (n_avail < MIN_IVS) {
     ts(sprintf("  ✗ Only %d SNPs available (< MIN_IVS = %d) — skipping", n_avail, MIN_IVS))
     return(NULL)
-  }
-
-  ivs <- ivs[avail_rsid, ]
+  } #Si moins de 3 SNPs disponibles dans l'outcome → abandonne l'analyse 
+ 
+  ivs <- ivs[avail_rsid, ] # crée un subgroupe et remplace ivs par ce subgroup qui ne garde que les SNPs présents dans l'outcome
 
   # ── Remove palindromes ────────────────────────────────────────────────────
-  ivs$is_palindromic <- check_palindromic(EA = ivs[[ec$ea]], NEA = ivs[[ec$oa]])
+  ivs$is_palindromic <- check_palindromic(EA = ivs[[ec$ea]], NEA = ivs[[ec$oa]])  #on crée is_palindromic dans ivs, on check les palindromes 
+
   n_palind <- sum(ivs$is_palindromic, na.rm = TRUE)
-  ts(sprintf("  Palindrome : %d palindromic SNPs", n_palind))
+  ts(sprintf("  Palindrome : %d palindromic SNPs", n_palind))  #affiche les palindromes restants 
   ivs <- ivs[!is.na(ivs$is_palindromic) & !ivs$is_palindromic, ]
+
+ 
 
   if (nrow(ivs) < MIN_IVS) { ts("  ✗ Not enough IVs after palindrome removal"); return(NULL) }
 
-  # ── 2. Format exposure ────────────────────────────────────────────────────
+
+           
+# ── 2. Format exposure ────────────────────────────────────────────────────
+ # snp_col MUST be rsID — the LD reference panel only recognises rsIDs, eargs = exposure arguments 
+ # prépare les arguments pour format_data qui s'occupe de la mise en forme, à partir de la structure de ec. Pour dire quelle colonne contient les rsID,  quelles colonnes contiennent beta, SE, allèles, EAF, p‑valeurs, taille d’échantillon, etc.
+ # ajouter éventuellement ncase/ncontrol pour un trait binaire,
+# produire un objet exp_fmt bien étiqueté pour la suite des analyses MR (harmonisation, MR, Steiger, Radial, etc.).
+
   eargs <- list(
     ivs, type = "exposure",
     snp_col           = ec$rsid,
@@ -607,26 +670,32 @@ run_direction <- function(
   if (!is.null(ec$ncontrol)&& ec$ncontrol %in% names(ivs)) eargs$ncontrol_col   <- ec$ncontrol
 
   exp_fmt          <- do.call(format_data, eargs)
-  exp_fmt$exposure <- exp_name
+  exp_fmt$exposure <- exp_name # pour que les tables soient bien labellisées 
 
-  # ── 3. LD clumping ────────────────────────────────────────────────────────
+# ── 3. LD clumping (EUR 1000G, r² < 0.001, 10 000 kb) ────────────────────
   ts("  Clumping ...")
   exp_c <- tryCatch(
     clump_data(exp_fmt, clump_r2 = CLUMP_R2, clump_kb = CLUMP_KB, pop = "EUR"),
-    error = function(e) { ts("  ! API clumping failed: ", conditionMessage(e)); exp_fmt }
+    error = function(e) { ts("  ! API clumping failed: ", conditionMessage(e)); exp_fmt } #Si l'API est inaccessible → affiche l'erreur et retourne tous les SNPs non clumpés
   )
   ts(sprintf("  %d independent IVs after clumping", nrow(exp_c)))
   if (nrow(exp_c) < MIN_IVS) { ts("  ✗ Not enough IVs post-clump"); return(NULL) }
 
   # ── 4. Extract outcome SNPs ───────────────────────────────────────────────
-  out_sub <- out_gwas[out_gwas[[oc$rsid]] %in% exp_c$SNP, ]
-  ts(sprintf("  Outcome match: %d / %d by rsID", nrow(out_sub), nrow(exp_c)))
+ # exp_c$SNP now contains rsIDs → match outcome on rsID column
+
+  out_sub <- out_gwas[out_gwas[[oc$rsid]] %in% exp_c$SNP, ]  # ←  Cherche dans l'outcome GWAS les SNPs dont le rsID est dans exp_c$SNP, sachant qu'il est issu de exp_fmt qui contient ivs (clean, après filtrage matching)
+  ts(sprintf("  Outcome match: %d / %d by rsID", nrow(out_sub), nrow(exp_c))) #Affiche combien de SNPs instruments ont été trouvés dans l'outcome
+
+#Si la colonne chr existe ET moins de 50% des SNPs trouvés par rsID → essaie le fallback chr:pos
 
   if (!is.null(oc$chr) && nrow(out_sub) < 0.5 * nrow(exp_c)) {
     ts("  Trying chr:pos fallback ...")
-    exp_cp <- paste0(sub("^chr", "", exp_c$chr.exposure), ":", exp_c$pos.exposure)
-    out_cp <- paste0(sub("^chr", "", out_gwas[[oc$chr]]),  ":", out_gwas[[oc$pos]])
-    idx    <- which(out_cp %in% exp_cp)
+    exp_cp <- paste0(sub("^chr", "", exp_c$chr.exposure), ":", exp_c$pos.exposure)  #Crée des identifiants chr:pos pour les instruments
+    out_cp <- paste0(sub("^chr", "", out_gwas[[oc$chr]]),  ":", out_gwas[[oc$pos]]) #Crée les mêmes identifiants chr:pos pour l'outcome GWAS
+    idx    <- which(out_cp %in% exp_cp)  # indices des lignes d’outcome dont le chr:pos correspond à un instrument
+
+     # si ce fallback récupère plus d’IV que le match par rsID initial, on le remplace
     if (length(idx) > nrow(out_sub)) {
       cpmap          <- setNames(exp_c$SNP, exp_cp)
       tmp            <- out_gwas[idx, ]
@@ -636,10 +705,15 @@ run_direction <- function(
   }
   if (nrow(out_sub) < MIN_IVS) { ts("  ✗ Not enough IVs in outcome GWAS"); return(NULL) }
 
-  # ── 5. Format outcome ─────────────────────────────────────────────────────
+# ── 5. Format outcome ─────────────────────────────────────────────────────
+
+# prépare les arguments pour format_data qui s'occupe de la mise en forme, à partir de la structure de ec. Pour dire quelle colonne contient les rsID,  quelles colonnes contiennent beta, SE, allèles, EAF, p‑valeurs, taille d’échantillon, etc.
+ # ajouter éventuellement ncase/ncontrol pour un trait binaire,
+# produire un objet exp_fmt bien étiqueté pour la suite des analyses MR (harmonisation, MR, Steiger, Radial, etc.).
+
   oargs <- list(
     out_sub, type = "outcome",
-    snp_col           = oc$rsid,
+    snp_col           = oc$rsid, # ← rsID, not SNPID
     beta_col          = oc$beta,
     se_col            = oc$se,
     effect_allele_col = oc$ea,
@@ -653,20 +727,22 @@ run_direction <- function(
   if (!is.null(oc$ncase)   && oc$ncase    %in% names(out_sub)) oargs$ncase_col      <- oc$ncase
   if (!is.null(oc$ncontrol)&& oc$ncontrol %in% names(out_sub)) oargs$ncontrol_col   <- oc$ncontrol
 
-  out_fmt         <- do.call(format_data, oargs)
-  out_fmt$outcome <- out_name
+  out_fmt         <- do.call(format_data, oargs) #appel la fonction format_data et rentre les arguments qu'on a inscrit dans la list 
+  out_fmt$outcome <- out_name # label l'outcome pour les tableaux 
 
-  # ── 6. Harmonise ─────────────────────────────────────────────────────────
+# ── 6. Harmonise (action=3:,exclude ambiguous palindromic MAF 0.42–0.58) ────────────
   ts("  Harmonising (action = 3) ...")
   dat    <- harmonise_data(exp_c, out_fmt, action = 3)
-  dat_mr <- dat[dat$mr_keep, ]
+  dat_mr <- dat[dat$mr_keep, ] #mr_keep est un vecteur de la fonction harmonise data qui attribue à chaque SNP true or false à l'issue de l'harmonisation 
   ts(sprintf("  Total: %d | Kept: %d | Removed: %d",
-             nrow(dat), nrow(dat_mr), sum(!dat$mr_keep)))
+             nrow(dat), nrow(dat_mr), sum(!dat$mr_keep)))  #non mr_keep sont retirés (!mr_keep)  
 
   if (nrow(dat_mr) < MIN_IVS) { ts("  ✗ Not enough SNPs post-harmonisation"); return(NULL) }
 
-  # ── 7. Steiger ────────────────────────────────────────────────────────────
+# ── 7. Steiger directionality test ──────────────────────────────────────
   ts("  Steiger directionality test ...")
+
+ # Reconstruire samplesize si absent pour les traits binaires, si les colonnes existent et qu'elles ne sont pas vides 
 
   if ("ncase.outcome" %in% names(dat_mr) &&
       sum(!is.na(dat_mr$ncase.outcome)) > 0 &&
@@ -681,18 +757,21 @@ run_direction <- function(
        all(is.na(dat_mr$samplesize.exposure)))) {
     dat_mr$samplesize.exposure <- dat_mr$ncase.exposure + dat_mr$ncontrol.exposure
   }
+  
+   # ── Helper: compute r² (corrélation SNP-trait) contribution per SNP ─────────────────────────────
 
   compute_r <- function(beta, eaf, pval, n, ncase, ncontrol,
                         is_binary, prevalence, label) {
-    n_snps <- length(beta)
+    n_snps <- length(beta)  # ← ajout nb de snps selon le nb de b 
 
-    if (is_binary) {
+    if (is_binary) { #is_binary issu de exp_binary défini dans traits (liste)
+         # Binary trait: convert log-OR to r via liability-scale conversion
       if (is.null(ncase) || all(is.na(ncase)) ||
           is.null(ncontrol) || all(is.na(ncontrol))) {
         pval_c <- pmax(pmin(pval, 1 - 1e-15), 1e-300)
         n_c    <- pmax(n, 2L)
-        r <- TwoSampleMR::get_r_from_pn(p = pval_c, n = n_c)
-      } else {
+        r <- TwoSampleMR::get_r_from_pn(p = pval_c, n = n_c) #convertit p‑value + N en une corrélation $r$ approximative si absence de n_case et n_control
+      } else { #si ncase et control disponibles, lor = log-odds ratio 
         r <- TwoSampleMR::get_r_from_lor(
           lor = beta, af = eaf,
           ncase = ncase, ncontrol = ncontrol,
@@ -700,17 +779,20 @@ run_direction <- function(
         )
       }
     } else {
+           # Continuous trait (is_binary false): convert p + N to r
       if (is.null(n) || all(is.na(n))) {
         return(rep(NA_real_, n_snps))
       }
       pval_c <- pmax(pmin(pval, 1 - 1e-15), 1e-300)
       n_c    <- pmax(n, 2L)
-      r <- TwoSampleMR::get_r_from_pn(p = pval_c, n = n_c)
+      r <- TwoSampleMR::get_r_from_pn(p = pval_c, n = n_c) #on obtient r à partir du calcul par TWOSAMPLEMR
     }
 
     if (length(r) == 0 || length(r) != n_snps) return(rep(NA_real_, n_snps))
-    pmin(pmax(r, -0.9999), 0.9999)
+    pmin(pmax(r, -0.9999), 0.9999) # clamp/borner to valid correlation range
   }
+
+#application pour les données exposure et outcome 
 
   dat_mr$r.exposure <- compute_r(
     beta = dat_mr$beta.exposure, eaf = dat_mr$eaf.exposure,
@@ -728,11 +810,13 @@ run_direction <- function(
     is_binary = out_binary, prevalence = out_prevalence, label = out_name
   )
 
+ # Steiger directionality test — 
   dir_res <- tryCatch(
     directionality_test(dat_mr),
     error = function(e) { ts("  ! directionality_test failed: ", conditionMessage(e)); NULL }
   )
-
+#Fonction de sécurité : si dir_res est NULL, vide, ou sans la colonne demandée = retourne NA
+# sinon, on prend la première valeur de cette colonne (dir_res)
   safe_col <- function(df, col) {
     if (is.null(df) || nrow(df) == 0 || !col %in% names(df)) return(NA)
     v <- df[[col]][1]; if (length(v) == 0) NA else v
@@ -748,24 +832,48 @@ run_direction <- function(
   ts("  Running MR ...")
   res <- mr(dat_use, method_list = c(
     "mr_ivw",
+    "mr_ivw_fe",
     "mr_egger_regression",
     "mr_weighted_median"
   ))
+
+  # IVW = tous les instruments valides
+# MR-Egger, intercept ≠ 0 → évidence de pléiotropie (INSIDE assumption = pléiotropie compensée ou indépendante de l'effet causal), si Q et Qf proches alors
+# Weighted Median — méthode de sensibilité : 50% des instruments corrects
+
 
   ts(sprintf("  Méthodes MR disponibles : %s", paste(res$method, collapse = " | ")))
 
   # ── 9. Heterogeneity & pleiotropy ─────────────────────────────────────────
   het   <- tryCatch(mr_heterogeneity(dat_use),  error = function(e) { ts("  ⚠ Heterogeneity: ", conditionMessage(e)); NULL })
+
+ # normalement les SNPs donnent un effet similaire (dépendant de si on considère le fixed effect ou le random effect model)
+ # Q mesure l'hétérogénéité entre les SNPs instruments, si Q petit = effets similaires des SNPs
+ # Q_df = nombre de SNPs - 1
+
+
   pleio <- tryCatch(mr_pleiotropy_test(dat_use), error = function(e) { ts("  ⚠ Pleiotropy: ",   conditionMessage(e)); NULL })
+
+#Teste si l'intercept de MR-Egger est différent de 0 = pléiotropie directionnelle
+
+
 
   # ── 10. Radial MR ─────────────────────────────────────────────────────────
   ts("  Running Radial MR ...")
   rad <- run_radial(dat_use)
+#détecte les SNPs outliers via Cochran Q, recalcule IVW sans les outliers, return b, se, pval, nsnp, n_out
+
 
   # ── 11. Save per-direction outputs ────────────────────────────────────────
   pfx <- file.path(OUTDIR, sprintf("%s_to_%s",
     gsub("[^A-Za-z0-9]", "_", exp_name),
     gsub("[^A-Za-z0-9]", "_", out_name)))
+
+#créer le préfixe, utilisé pour tous les noms de fichiers de résultats pour cette direction 
+# exposure to outcome préfixe 
+#remplace tous les caractères non alphanumériques par _ pour avoir un nom de fichier sûr (pas d’espace, pas de parenthèse, etc.).
+
+#Écrit des données dans un fichier
 
   tryCatch({
     fwrite(dat_use, sprintf("%s_dat_mr.tsv",     pfx), sep = "\t")
@@ -792,11 +900,14 @@ run_direction <- function(
     r <- res[grepl(method_pattern, res$method, ignore.case = TRUE), ]
     if (nrow(r) == 0) list(b = NA_real_, se = NA_real_, pval = NA_real_)
     else              list(b = r$b[1],   se = r$se[1],  pval = r$pval[1])
-  }
+  }#Fonction locale — extrait b, se, pval pour une méthode donnée, si méthode absente → retourne NA, si présente → retourne les valeurs
+#res = résultat de la MR 
 
   ivw <- grp("Inverse variance weighted")
+  ivw_fe <- grp("fixed effects")   
   eg  <- grp("MR Egger")
   wm  <- grp("Weighted median")
+ #Extrait les résultats des 4 méthodes
 
   cc <- check_concordance(ivw$b, ivw$pval, eg$b, eg$pval, wm$b, wm$pval)
 
@@ -804,6 +915,7 @@ run_direction <- function(
     exposure = exp_name,  outcome  = out_name,
     n_snps   = nrow(dat_use), f_median = f_median,
     ivw = ivw,
+    ivw_fe = ivw_fe,
     het_Q  = safe_het(het,  "Inverse variance weighted", "Q"),
     het_Qp = safe_het(het,  "Inverse variance weighted", "Q_pval"),
     eg = eg,
@@ -827,10 +939,10 @@ gwas_list <- list()
 
 for (trait in csvd_traits) {
   ts(sprintf("  Loading %s ...", trait$name))
-  dat <- read_gwaslab(trait$file, min_eaf = MIN_EAF)
+  dat <- read_gwaslab(trait$file, min_eaf = MIN_EAF) #filtre les variants avec EAF < 0.01 ou > 0.99
 
-  if (!"N" %in% names(dat)) {
-    if ("N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat)) {
+  if (!"N" %in% names(dat)) { #Vérifie si la colonne N total est absente du fichier (certains fichiers cSVD ne la contiennent pas).
+    if ("N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat)) { #Si N_CASE et N_CONTROL existent → calcule N total = cas + contrôles.
       dat$N <- dat$N_CASE + dat$N_CONTROL
     } else if (!is.null(trait$n_manual)) {
       dat$N <- trait$n_manual
@@ -846,18 +958,18 @@ csvd_loaded <- gwas_list
 ts("Loading exposure GWAS ...")
 exp_loaded <- list()
 
-for (exp in exposures) {
-  ts(sprintf("  Chargement : %s", exp$name))
+for (exp in exposures) { #Itère sur chacune des expositions définies (BMI, lipides, stroke, etc.).
+  ts(sprintf("  Chargement : %s", exp$name)) #Affiche le nom de l'exposition en cours.
   dat <- tryCatch({
-    d <- read_gwaslab(exp$file, min_eaf = MIN_EAF)
-    d <- inject_n(d, exp)
+    d <- read_gwaslab(exp$file, min_eaf = MIN_EAF) #Lit le fichier GWAS de l'exposition avec filtre EAF.
+    d <- inject_n(d, exp) #Injecte les effectifs manquants (N_CASE, N_CONTROL, N) depuis la configuration manuelle si nécessaire.
     d
   }, error = function(e) {
     ts(sprintf("  ✗ Échec chargement %s : %s", exp$name, conditionMessage(e)))
     NULL
   })
   if (!is.null(dat)) {
-    exp_loaded[[exp$name]] <- list(gwas = dat, cfg = exp)
+    exp_loaded[[exp$name]] <- list(gwas = dat, cfg = exp) # stocke dans exp_loaded sous la clé exp$name. 
     ts(sprintf("    %s SNPs ✓", format(nrow(dat), big.mark = ",")))
   }
 }
@@ -868,14 +980,14 @@ ts(sprintf("  %d / %d expositions chargées", length(exp_loaded), length(exposur
 # BOUCLE BIDIRECTIONNELLE
 # =============================================================================
 
-all_results          <- list()
-result_rows          <- list()
-out_tsv_incremental  <- file.path(OUTDIR, "MR_results_incremental.tsv")
+all_results          <- list() #Accumulera tous les résultats MR (directions A et B) sous forme de listes brutes.
+result_rows          <- list() #Accumulera les résultats formatés en lignes de dataframe (sorties de make_row).
+out_tsv_incremental  <- file.path(OUTDIR, "MR_results_incremental.tsv") #Chemins des fichiers de sauvegarde incrémentale (mis à jour après chaque direction).
 out_xlsx_incremental <- file.path(OUTDIR, "MR_results_incremental.xlsx")
 header_written       <- FALSE
-N_PAIRS              <- length(exp_loaded) * length(csvd_loaded)
-pair_i               <- 0L
-clean_name           <- function(s) gsub("[^A-Za-z0-9]", "_", s)
+N_PAIRS              <- length(exp_loaded) * length(csvd_loaded) #Nombre total de paires exposition × cSVD (ex: 25 expositions × 4 cSVD = 100 paires). Utilisé pour l'affichage de progression.
+pair_i               <- 0L #Compteur de paires initialisé à 0
+clean_name           <- function(s) gsub("[^A-Za-z0-9]", "_", s) #Fonction utilitaire : remplace tout caractère non alphanumérique par _
 
 for (exp_item in exp_loaded) {
 
@@ -969,8 +1081,9 @@ ts(sprintf("══ Boucle terminée : %d directions lancées ══", length(all
 # TABLEAU FINAL
 # =============================================================================
 
-valid_results <- Filter(Negate(is.null), all_results)
+valid_results <- Filter(Negate(is.null), all_results)  #on garde uniquement les directions avec résultats valides
 
+#applique make row à chaque direction 
 tbl <- do.call(rbind, lapply(names(valid_results), function(key) {
   d     <- valid_results[[key]]
   atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown"
@@ -1076,4 +1189,8 @@ ts(sprintf("  N valides          : %d", length(valid_results)))
 ts(sprintf("  N primary          : %d", nrow(tbl_primary)))
 ts(sprintf("  N sensitivity      : %d", nrow(tbl_sensitivity)))
 ts(sprintf("  Seuil Bonferroni   : %.2e", 0.05 / N_TESTS))
+<<<<<<< HEAD
 ts(sprintf("  Résultats → %s", OUTDIR))
+=======
+ts(sprintf("  Résultats → %s", OUTDIR)) 
+>>>>>>> 730430f (2026-06-22 13:13 - update)

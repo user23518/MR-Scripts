@@ -931,6 +931,7 @@ run_direction <- function(
 # =============================================================================
 
 ts("Loading all cSVD GWAS ...")
+
 gwas_list <- list()
 
 for (trait in csvd_traits) {
@@ -952,6 +953,8 @@ for (trait in csvd_traits) {
 csvd_loaded <- gwas_list
 
 ts("Loading exposure GWAS ...")
+
+
 exp_loaded <- list()
 
 for (exp in exposures) { #Itère sur chacune des expositions définies (BMI, lipides, stroke, etc.).
@@ -985,27 +988,27 @@ N_PAIRS              <- length(exp_loaded) * length(csvd_loaded) #Nombre total d
 pair_i               <- 0L #Compteur de paires initialisé à 0
 clean_name           <- function(s) gsub("[^A-Za-z0-9]", "_", s) #Fonction utilitaire : remplace tout caractère non alphanumérique par _
 
-for (exp_item in exp_loaded) {
+for (exp_item in exp_loaded) { #Pour chaque exposition, itère sur les 4 traits cSVD → crée toutes les combinaisons.
 
-  exp_gwas <- exp_item$gwas
-  exp_cfg  <- exp_item$cfg
-  exp_cm   <- build_col_map(exp_gwas)
+  exp_gwas <- exp_item$gwas #Extrait le dataframe GWAS de l'exposition.
+  exp_cfg  <- exp_item$cfg #Extrait la configuration de l'exposition (binary, prev, primary_role, etc.).
+  exp_cm   <- build_col_map(exp_gwas)  #Construit la carte des colonnes pour l'exposition (vérifie quelles colonnes optionnelles existent).
 
-  for (csvd_item in csvd_loaded) {
+  for (csvd_item in csvd_loaded) { #Pour chaque exposition, itère sur les 4 traits cSVD → crée toutes les combinaisons.
 
-    csvd_gwas <- csvd_item$gwas
+    csvd_gwas <- csvd_item$gwas  
     csvd_cfg  <- csvd_item$cfg
     csvd_cm   <- build_col_map(csvd_gwas)
 
-    pair_i <- pair_i + 1L
+    pair_i <- pair_i + 1L #Incrémente le compteur et affiche la progression (ex: "══ Paire 5 / 100 : BMI ↔ WMH Shiva ══").
     ts(sprintf("══ Paire %d / %d : %s ↔ %s ══",
                pair_i, N_PAIRS, exp_cfg$name, csvd_cfg$name))
 
-    primary_role <- if (!is.null(exp_cfg$primary_role)) exp_cfg$primary_role else "exposure"
-    type_A <- if (primary_role == "exposure") "primary"            else "sensitivity_reverse"
-    type_B <- if (primary_role == "outcome")  "primary"            else "sensitivity_reverse"
+    primary_role <- if (!is.null(exp_cfg$primary_role)) exp_cfg$primary_role else "exposure" #Récupère primary_role depuis la config de l'exposition.
+    type_A <- if (primary_role == "exposure") "primary"            else "sensitivity_reverse" #on teste si l'exposition cause le cSVD) sinon # c'est la direction de sensibilité (reverse)
+    type_B <- if (primary_role == "outcome")  "primary"            else "sensitivity_reverse"    #c'est la direction primaire (on teste si le cSVD cause l'exposition) sinon → c'est la direction de sensibilité
 
-    key_A <- sprintf("%s__to__%s", clean_name(exp_cfg$name),  clean_name(csvd_cfg$name))
+    key_A <- sprintf("%s__to__%s", clean_name(exp_cfg$name),  clean_name(csvd_cfg$name)) #Crée des clés uniques pour stocker les résultats (le nom) 
     key_B <- sprintf("%s__to__%s", clean_name(csvd_cfg$name), clean_name(exp_cfg$name))
 
     # ── Direction A ───────────────────────────────────────────────────────
@@ -1026,11 +1029,11 @@ for (exp_item in exp_loaded) {
       }
     )
 
-    if (!is.null(res_A)) res_A$analysis_type <- type_A
-    all_results[[key_A]] <- res_A
+    if (!is.null(res_A)) res_A$analysis_type <- type_A #Ajoute le type d'analyse 
+    all_results[[key_A]] <- res_A #dans all_results sous la clé unique
 
     if (!is.null(res_A)) {
-      row_A                <- make_row(res_A, analysis_type = type_A)
+      row_A                <- make_row(res_A, analysis_type = type_A) #Convertit la liste de résultats en une ligne de dataframe formatée.
       result_rows[[key_A]] <- row_A
       data.table::fwrite(row_A, out_tsv_incremental,
                          sep = "\t", append = header_written, col.names = !header_written)
@@ -1079,10 +1082,10 @@ ts(sprintf("══ Boucle terminée : %d directions lancées ══", length(all
 
 valid_results <- Filter(Negate(is.null), all_results)  #on garde uniquement les directions avec résultats valides
 
-#applique make row à chaque direction 
+#applique make row à chaque direction avec rbind qui empile les résultats 
 tbl <- do.call(rbind, lapply(names(valid_results), function(key) {
-  d     <- valid_results[[key]]
-  atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown"
+  d     <- valid_results[[key]] #Récupère la liste de résultats pour cette direction
+  atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown" #Récupère le type d'analyse ("primary" ou "sensitivity_reverse")
   make_row(d, analysis_type = atype)
 }))
 
@@ -1107,20 +1110,23 @@ tbl <- do.call(rbind, lapply(names(valid_results), function(key) {
 }))
 
 tbl <- tbl[order(tbl$Analysis_type != "primary", tbl$IVW_p_raw, na.last = TRUE), ]
-rownames(tbl) <- NULL
+#es analyses primaires apparaissent en premier
+#tri croissant par p-value  et  les NA de p-value vont à la fin
 
-tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ]
+rownames(tbl) <- NULL #Réinitialise les numéros de lignes (après tri, ils sont désordonnés : 3,7,1,5... → remet 1,2,3,4...).
+
+tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ] #Recrée les sous-tableaux avec le tri et le Bonferroni (remplace les versions créées avant).
 tbl_sensitivity <- tbl[tbl$Analysis_type == "sensitivity_reverse", ]
 
 # ── Export TSV ────────────────────────────────────────────────────────────────
-out_tsv <- file.path(OUTDIR, "FINAL_bidirectional_MR_all_exposures.tsv")
-fwrite(tbl, out_tsv, sep = "\t")
+out_tsv <- file.path(OUTDIR, "FINAL_bidirectional_MR_all_exposures.tsv") #Construit le chemin complet du fichier de sortie.
+fwrite(tbl, out_tsv, sep = "\t") # tableau complet (primaire + sensibilité)
 fwrite(tbl_primary,     file.path(OUTDIR, "FINAL_MR_primary.tsv"),             sep = "\t")
 fwrite(tbl_sensitivity, file.path(OUTDIR, "FINAL_MR_sensitivity_reverse.tsv"), sep = "\t")
 
 ts(sprintf("  TSV : %d lignes | Primary : %d | Sensitivity : %d",
            nrow(tbl), nrow(tbl_primary), nrow(tbl_sensitivity)))
-
+#Bilan : nombre total de lignes, primaires, et de sensibilité.
 
 # ── Export XLSX ───────────────────────────────────────────────────────────────
 if (HAS_XLSX) {
@@ -1131,7 +1137,7 @@ if (HAS_XLSX) {
     fontColour = "#FFFFFF", fgFill = "#2F5597",
     halign = "CENTER", textDecoration = "Bold", wrapText = TRUE
   )
-  sig_style  <- openxlsx::createStyle(fgFill = "#E2EFDA")
+  sig_style  <- openxlsx::createStyle(fgFill = "#E2EFDA") #Deux styles pour colorier les lignes significatives.
   bonf_style <- openxlsx::createStyle(fgFill = "#FFD966")
 
   write_sheet <- function(wb, sheet_name, data) {
@@ -1140,18 +1146,18 @@ if (HAS_XLSX) {
       return(invisible(NULL))
     }
 
-    openxlsx::addWorksheet(wb, sheet_name)
+    openxlsx::addWorksheet(wb, sheet_name)  #wb = whiteboard; sheet_name 
     openxlsx::writeData(wb, sheet_name, data, headerStyle = header_style)
 
     bonf_thresh <- 0.05 / N_TESTS
 
-    sig_rows  <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < 0.05)
+    sig_rows  <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < 0.05) # retourne les indices (numéros de lignes) qui satisfont la condition
     bonf_rows <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < bonf_thresh)
 
     if (length(sig_rows) > 0)
       openxlsx::addStyle(wb, sheet_name, style = sig_style,
-                         rows = sig_rows + 1, cols = seq_len(ncol(data)),
-                         gridExpand = TRUE)
+                         rows = sig_rows + 1, cols = seq_len(ncol(data)), 
+                         gridExpand = TRUE) ## applique à chaque cellule
 
     if (length(bonf_rows) > 0)
       openxlsx::addStyle(wb, sheet_name, style = bonf_style,
@@ -1159,12 +1165,13 @@ if (HAS_XLSX) {
                          gridExpand = TRUE)
 
     openxlsx::setColWidths(wb, sheet_name, cols = seq_len(ncol(data)), widths = "auto")
-    openxlsx::freezePane(wb, sheet_name, firstRow = TRUE)
+    openxlsx::freezePane(wb, sheet_name, firstRow = TRUE) #→ fige la première ligne (en-têtes) → reste visible quand on scrolle vers le bas
 
     ts(sprintf("  Feuille '%s' : %d lignes | %d sig (p<0.05) | %d Bonferroni (p<%.2e)",
                sheet_name, nrow(data), length(sig_rows), length(bonf_rows), bonf_thresh))
   }
 
+#Crée les 3 onglets dans le classeur.
   write_sheet(wb, "All results",           tbl)
   write_sheet(wb, "Primary",               tbl_primary)
   write_sheet(wb, "Sensitivity (reverse)", tbl_sensitivity)

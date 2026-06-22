@@ -245,11 +245,7 @@ check_palindromic <- function(EA, NEA) {
   (EA == "C" & NEA == "G")
 }
 
-<<<<<<< HEAD
 #build_col_map permet à run_direction d'être une fonction générique qui fonctionne avec n'importe quel fichier GWAS dans les deux directions, sans jamais avoir à vérifier elle-même quelles colonnes existent.
-=======
-#construit la liste des arguments pour TWOsampleMR
->>>>>>> 730430f (2026-06-22 13:13 - update)
 build_col_map <- function(dat) {
   list(
     rsid     = if ("rsID"      %in% names(dat)) "rsID"      else NULL,
@@ -1189,8 +1185,4 @@ ts(sprintf("  N valides          : %d", length(valid_results)))
 ts(sprintf("  N primary          : %d", nrow(tbl_primary)))
 ts(sprintf("  N sensitivity      : %d", nrow(tbl_sensitivity)))
 ts(sprintf("  Seuil Bonferroni   : %.2e", 0.05 / N_TESTS))
-<<<<<<< HEAD
 ts(sprintf("  Résultats → %s", OUTDIR))
-=======
-ts(sprintf("  Résultats → %s", OUTDIR)) 
->>>>>>> 730430f (2026-06-22 13:13 - update)

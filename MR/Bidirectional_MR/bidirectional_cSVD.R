@@ -318,14 +318,7 @@ inject_n <- function(dat, cfg) {
 }
 
 # ── Sauvegarde XLSX incrémentale ──────────────────────────────────────────────
-<<<<<<< HEAD
 append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale, à chaque direction terminée, on ajoute une ligne au fichier Excel existant.
-=======
-#à chaque nouvelle direction MR analysée, ajoute une ligne sans recréer tout le fichier.
-
-
-append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale
->>>>>>> 730430f (2026-06-22 13:13 - update)
 
   if (!HAS_XLSX) return(invisible(NULL))
 
@@ -386,14 +379,8 @@ append_to_xlsx <- function(row, xlsx_path) { #Sauvegarde incrémentale
 }
 
 # ── make_row   ──────────────────────────────────────────────
-make_row <- function(d, analysis_type = "primary", bonf_n = NA_integer_) {
+make_row <- function(d, analysis_type = "primary") {
 #Convertit les résultats d'une direction MR en une ligne de dataframe pour le tableau final.
-
-#p-value Bonferroni = p × N_tests (plafonné à 1)
-  bonfp <- tryCatch({
-    p <- safe_numeric(d$ivw$pval)
-    if (!is.na(p) && !is.na(bonf_n)) min(1, p * bonf_n) else NA_real_
-  }, error = function(e) NA_real_) 
 
 
   data.frame(
@@ -578,8 +565,6 @@ run_direction <- function(
     exp_gwas, out_gwas,
     exp_name,  out_name,
     ec, oc,
-    exp_units      = "SD",
-    out_units      = "log odds",
     exp_binary     = FALSE, # par défaut les 2 traits sont continus
     out_binary     = FALSE,
     exp_prevalence = NULL,
@@ -609,11 +594,6 @@ run_direction <- function(
   }
   if (nrow(ivs) < MIN_IVS) { ts("  ✗ Not enough IVs — skipping"); return(NULL) }
 
-  f_all    <- (ivs[[ec$beta]] / ivs[[ec$se]])^2 # Calcule la F-statistique pour chaque SNP = mesure la force de chaque instrument
-  f_median <- round(median(f_all, na.rm = TRUE), 1) #Calcule la médiane des F-stats — arrondie à 1 décimale, calculer une F‑stat pour chaque instrument (dans f_all), la médiane (force globale), la valeur minimale (instrument le plus faible), le nombre d’instruments avec F < 10 (instruments faibles),
-  ts(sprintf("  F-stat: median = %.1f | min = %.1f | n(F < 10) = %d",
-             f_median, min(f_all, na.rm = TRUE), sum(f_all < 10, na.rm = TRUE)))
-
   # ── Availability filter ───────────────────────────────────────────────────
   avail_rsid <- ivs[[ec$rsid]] %in% out_gwas[[oc$rsid]]  #Pour chaque SNP instrument — est-il présent dans l'outcome ? on prend les rsid de ivs (snps significatifs) qu'on vérifie dans les rsid de l'outcome 
   n_avail    <- sum(avail_rsid)   # Compte les SNPs disponibles 
@@ -640,6 +620,12 @@ run_direction <- function(
  
 
   if (nrow(ivs) < MIN_IVS) { ts("  ✗ Not enough IVs after palindrome removal"); return(NULL) }
+
+
+  f_all    <- (ivs[[ec$beta]] / ivs[[ec$se]])^2 # Calcule la F-statistique pour chaque SNP = mesure la force de chaque instrument
+  f_median <- round(median(f_all, na.rm = TRUE), 1) #Calcule la médiane des F-stats — arrondie à 1 décimale, calculer une F‑stat pour chaque instrument (dans f_all), la médiane (force globale), la valeur minimale (instrument le plus faible), le nombre d’instruments avec F < 10 (instruments faibles),
+  ts(sprintf("  F-stat: median = %.1f | min = %.1f | n(F < 10) = %d",
+             f_median, min(f_all, na.rm = TRUE), sum(f_all < 10, na.rm = TRUE)))
 
 
            
@@ -1088,6 +1074,8 @@ valid_results <- Filter(Negate(is.null), all_results)  #on garde uniquement les 
 #rbind empile les dataframes 
 # List apply = applique une fonction à chaque élément → retourne toujours une liste
            
+# ── 1. Construire le tableau brut ─────────────────────────────────────────────
+
 tbl <- do.call(rbind, lapply(names(valid_results), 
   function(key) {
   d     <- valid_results[[key]] #Récupère la liste de résultats pour cette direction
@@ -1097,36 +1085,41 @@ tbl <- do.call(rbind, lapply(names(valid_results),
   #Convertit la liste de résultats en une ligne de data.frame
 }))
 
-tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ]
 
-           
-tbl_sensitivity <- tbl[tbl$Analysis_type == "sensitivity_reverse", ]
-
-N_TESTS <- nrow(tbl_primary) # NB d'analyses primaires, sachant qu'on va en réalité corriger pour les tests indépendants (à faire à la fin)
-ts(sprintf("  N_TESTS (Bonferroni) = %d", N_TESTS))
-
-if (N_TESTS == 0) {
-  warning("⚠ N_TESTS = 0 — vérifier primary_role dans les expositions")
-  N_TESTS <- 1L
-}
-
-
-
-# Recalculer Bonferroni maintenant que N_TESTS est connu
-tbl <- do.call(rbind, lapply(names(valid_results), function(key) {
-  d     <- valid_results[[key]]
-  atype <- if (!is.null(d$analysis_type)) d$analysis_type else "unknown"
-  make_row(d, analysis_type = atype, bonf_n = N_TESTS)
-}))
-
+# ── 2. Trier ──────────────────────────────────────────────────────────────────
 tbl <- tbl[order(tbl$Analysis_type != "primary", tbl$IVW_p_raw, na.last = TRUE), ]
+rownames(tbl) <- NULL
 #es analyses primaires apparaissent en premier
 #tri croissant par p-value  et  les NA de p-value vont à la fin
 
+# ── 3. Séparer primary / sensitivity ─────────────────────────────────────────
+
+
+tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ]  #Recrée les sous-tableaux avec le tri et le Bonferroni (remplace les versions créées avant).
+           
+tbl_sensitivity <- tbl[tbl$Analysis_type == "sensitivity_reverse", ]
+
+
+# ── 4. Appliquer p.adjust SUR tbl_primary ────────────────────────────────────
+tbl_primary$IVW_p_Bonferroni <- fmt_p(p.adjust(
+  tbl_primary$IVW_p_raw, method = "bonferroni"
+))
+
+
+# ── 5. NA pour sensitivity ────────────────────────────────────────────────────
+tbl_sensitivity$IVW_p_Bonferroni <- NA_character_
+tbl_sensitivity$IVW_p_FDR        <- NA_character_
+
+
+ # ── 6. Recombiner ─────────────────────────────────────────────────────────────
+tbl <- rbind(tbl_primary, tbl_sensitivity)
+
+ts(sprintf("  N_TESTS (Bonferroni) = %d", nrow(tbl_primary)))
+ts(sprintf("  Seuil Bonferroni     = %.2e", 0.05 / nrow(tbl_primary)))
+
 rownames(tbl) <- NULL #Réinitialise les numéros de lignes (après tri, ils sont désordonnés : 3,7,1,5... → remet 1,2,3,4...).
 
-tbl_primary     <- tbl[tbl$Analysis_type == "primary",             ] #Recrée les sous-tableaux avec le tri et le Bonferroni (remplace les versions créées avant).
-tbl_sensitivity <- tbl[tbl$Analysis_type == "sensitivity_reverse", ]
+
 
 # ── Export TSV ────────────────────────────────────────────────────────────────
 out_tsv <- file.path(OUTDIR, "FINAL_bidirectional_MR_all_exposures.tsv") #Construit le chemin complet du fichier de sortie.

@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --output=/network/iss/debette/users/marine.huang/MR/logs/mr_cSVD_%j.out
 #SBATCH --error=/network/iss/debette/users/marine.huang/MR/logs/mr_cSVD_%j.err
-#SBATCH --job-name=MR_cSVD
+#SBATCH --job-name=MR_cSVD_Steiger_filter
 
 set -euo pipefail
 

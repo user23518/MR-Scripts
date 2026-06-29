@@ -25,7 +25,7 @@ mkdir -p $TMPDIR
 SCRIPT_DIR="/network/iss/debette/users/marine.huang/MR/Bidirectional_MR"
 RSCRIPT="/network/iss/home/marine.huang/.conda/envs/my_r_env/bin/Rscript"
 R_SCRIPT="${SCRIPT_DIR}/Multivariable_MR.R"
-OUTDIR="/network/iss/debette/users/marine.huang/MR/results/MVMR"
+OUTDIR="/network/iss/debette/users/marine.huang/MR/results/MVMR_HTN_adjusted"
 
 mkdir -p "${OUTDIR}"
 

@@ -1,10 +1,6 @@
 # =============================================================================
-# MULTIVARIABLE MENDELIAN RANDOMISATION (MVMR) — STANDALONE SCRIPT
-#
-# Reads the same GWAS files used in the univariable pipeline.
-# Does NOT re-run any univariable MR.
-# Estimates the DIRECT effect of each exposure on each cSVD outcome,
-# adjusted for the other exposures in the group.
+# MVMR HTN-ADJUSTED 
+# Lit les résultats univariables, charge les mêmes GWAS, fait uniquement MVMR
 # =============================================================================
 
 library(TwoSampleMR)
@@ -14,7 +10,6 @@ library(ggplot2)
 
 HAS_XLSX <- requireNamespace("openxlsx", quietly = TRUE)
 
-# ── Proxy (same as univariable script) ───────────────────────────────────────
 proxy_url <- "http://proxy-icm:3128"
 Sys.setenv(https_proxy = proxy_url)
 httr::set_config(httr::use_proxy(url = proxy_url))
@@ -31,31 +26,13 @@ ieugwasr::get_opengwas_jwt()
 ieugwasr::user()
 
 
-# ── Paths ────────────────────────────────────────────────────────────────────
-OUTDIR_UNI  <- "/network/iss/debette/users/marine.huang/MR/results"
-OUTDIR_MVMR <- "/network/iss/debette/users/marine.huang/MR/results/MVMR"
+# ── Paths ─────────────────────────────────────────────────────────────────────
+OUTDIR      <- "/network/iss/debette/users/marine.huang/MR/results"
+OUTDIR_MVMR <- file.path(OUTDIR, "MVMR_HTN_adjusted")
 dir.create(OUTDIR_MVMR, recursive = TRUE, showWarnings = FALSE)
 
-# ── Parameters ───────────────────────────────────────────────────────────────
-PVAL_IV  <- 5e-8
-CLUMP_R2 <- 0.001
-CLUMP_KB <- 10000
-MIN_EAF  <- 0.01
 
-ts <- function(...) message(format(Sys.time(), "[%H:%M:%S] "), ...)
-clean_name <- function(s) gsub("[^A-Za-z0-9]", "_", s)
-fmt_p <- function(p) {
-  if (is.null(p) || length(p) == 0) return(NA_character_)
-  p <- suppressWarnings(as.numeric(p[1]))
-  if (is.na(p))  return(NA_character_)
-  if (p < 0.001) formatC(p, format = "e", digits = 2) else as.character(round(p, 3))
-}
-
-
-# =============================================================================
-# TRAIT DEFINITIONS (same as univariable script)
-# =============================================================================
-
+# ── Traits cSVD ───────────────────────────────────────────────────────────────
 csvd_traits <- list(
   list(name = "WMH Shiva",
        file = "/network/iss/debette/users/marine.huang/Data/MR_EUR_datasets/UKBiobank/sumstats_shiva_total_wmh_ball_dint.tsv",
@@ -71,97 +48,112 @@ csvd_traits <- list(
        binary = FALSE, prev = NULL, n_manual = NULL)
 )
 
+
+# ── Expositions ───────────────────────────────────────────────────────────────
 exposures <- list(
   list(name = "Alzheimer's disease (Nicolas 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/AD_nicolas2025/ad_nicolas2025_hg38.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.05, n_cases_manual = NULL, n_controls_manual = NULL),
+       binary = TRUE, prev = 0.05, n_cases_manual = NULL, n_controls_manual = NULL, primary_role = "outcome"),
   list(name = "Parkinson's disease (Leonard 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/PD_leonard2025/GP2_euro_ancestry_meta_analysis_2024/pd_leonard2025_hg38.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.001, n_cases_manual = 34933, n_controls_manual = 3100),
+       binary = TRUE, prev = 0.001, primary_role = "outcome", n_cases_manual = 34933, n_controls_manual = 3100),
   list(name = "Major depressive disorder (Adams 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/MDD_adams2025/mdd_adams2025_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.05, n_manual = NULL),
+       binary = TRUE, prev = 0.05, n_manual = NULL, primary_role = "outcome"),
   list(name = "Migraine (Hautakangas 2022)",
        file = "/network/iss/debette/users/marine.huang/Data/MR_EUR_datasets/NON_UKBiobank/migraine_hautakangas2022/without_ukb/migraine_without_ukb_hautakangas2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.14, n_cases_manual = 38094, n_controls_manual = 210211),
+       binary = TRUE, prev = 0.14, n_cases_manual = 38094, n_controls_manual = 210211, primary_role = "exposure"),
   list(name = "Cardioembolic stroke (Mishra 2022)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/CEstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.002, n_cases_manual = 10804, n_controls_manual = 865389),
+       binary = TRUE, prev = 0.002, n_cases_manual = 10804, n_controls_manual = 865389, primary_role = "outcome"),
   list(name = "Large artery stroke (Mishra 2022)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/LAAstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.002, n_cases_manual = 6399, n_controls_manual = 865389),
+       binary = TRUE, prev = 0.002, n_cases_manual = 6399, n_controls_manual = 865389, primary_role = "outcome"),
   list(name = "Small vessel stroke (Mishra 2022)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/SVstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.0025, n_cases_manual = 6811, n_controls_manual = 865389),
+       binary = TRUE, prev = 0.0025, n_cases_manual = 6811, n_controls_manual = 865389, primary_role = "outcome"),
   list(name = "Ischaemic stroke (Mishra 2022)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/ISCHAEMICstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.01, n_cases_manual = 59890, n_controls_manual = 865389),
+       binary = TRUE, prev = 0.01, n_cases_manual = 59890, n_controls_manual = 865389, primary_role = "outcome"),
   list(name = "Any stroke (Mishra 2022)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/ANYstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.015, n_cases_manual = 70720, n_controls_manual = 865389),
+       binary = TRUE, prev = 0.015, n_cases_manual = 70720, n_controls_manual = 865389, primary_role = "outcome"),
   list(name = "Atrial fibrillation (Yuan 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/AF_yuan2025/af_yuan2025_hg38.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.01, n_manual = NULL),
+       binary = TRUE, prev = 0.01, n_manual = NULL, primary_role = "exposure"),
   list(name = "Heart failure (Shah 2020)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/HF_shah2020/hf_shah2020_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.02, n_cases_manual = NULL, n_controls_manual = NULL),
+       binary = TRUE, prev = 0.02, n_cases_manual = NULL, n_controls_manual = NULL, primary_role = "exposure"),
   list(name = "HTN (Verma 2024)",
        file = "/network/iss/debette/users/marine.huang/Data/MR_EUR_datasets/NON_UKBiobank/htn_verma2024/htn_verma2024_hg38.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.3, n_cases_manual = 320429, n_controls_manual = 107275),
+       binary = TRUE, prev = 0.3, n_cases_manual = 320429, n_controls_manual = 107275, primary_role = "exposure"),
   list(name = "Carotid atherosclerosis / IMT (Gummesson 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/ATHERO_gummesson2025/carotid_gummesson2025_hg38.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = 26807),
+       binary = FALSE, prev = NULL, n_manual = 26807, primary_role = "exposure"),
   list(name = "Coronary plaq (Gummesson 2025)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/ATHERO_gummesson2025/sis_gummesson2025_hg38.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = 24811),
+       binary = FALSE, prev = NULL, n_manual = 24811, primary_role = "exposure"),
   list(name = "Coronary artery calcification (Kavousi 2023)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/CAC_kavousi2023/cac_kavousi2023_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "Venous thromboembolism (Thibord 2022)",
        file = "/network/iss/debette/users/marine.huang/Data/MR_EUR_datasets/NON_UKBiobank/VTE_thibord2022/VTE_thibord2022_hg38.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.16, n_manual = NULL),
+       binary = TRUE, prev = 0.16, n_manual = NULL, primary_role = "exposure"),
   list(name = "BMI (Locke 2015)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/BODY_giant/bmi_locke2015_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "WHRadjBMI (Shungin 2015)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/BODY_giant/whradjBMI_shungin2015_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "Type 2 diabetes (Mahajan 2018)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/T2DM_mahajan2018/t2dm_mahajan2018_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.10, n_cases_manual = 72209, n_controls_manual = 400308),
+       binary = TRUE, prev = 0.10, n_cases_manual = 72209, n_controls_manual = 400308, primary_role = "exposure"),
   list(name = "Chronic kidney disease (Wuttke 2019)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/CKD_wuttke2019/CKD_wuttke2019_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.14, n_manual = NULL),
+       binary = TRUE, prev = 0.14, n_manual = NULL, primary_role = "exposure"),
   list(name = "Kidney function / eGFR (Wuttke 2019)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/CKD_wuttke2019/eGFR_wuttke2019_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "Smoking (Liu 2019)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/HABITS_liu2019/cigpday_liu2019_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "Alcohol consumption (Liu 2019)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/HABITS_liu2019/drinkspweek_liu2019_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "HDL cholesterol (Graham 2021)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/LIPIDS_graham2021/hdl_graham2021_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "LDL cholesterol (Graham 2021)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/LIPIDS_graham2021/ldl_graham2021_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "Non-HDL cholesterol (Graham 2021)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/LIPIDS_graham2021/nonhdl_graham2021_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "Total cholesterol (Graham 2021)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/LIPIDS_graham2021/tc_graham2021_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL),
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure"),
   list(name = "Triglycerides (Graham 2021)",
        file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/LIPIDS_graham2021/tg_graham2021_hg19.gwaslab.tsv.gz",
-       binary = FALSE, prev = NULL, n_manual = NULL)
+       binary = FALSE, prev = NULL, n_manual = NULL, primary_role = "exposure")
 )
 
 
-# =============================================================================
-# HELPERS
-# =============================================================================
+# ── Parameters ────────────────────────────────────────────────────────────────
+PVAL_IV  <- 5e-8; CLUMP_R2 <- 0.001; CLUMP_KB <- 10000
+MIN_IVS  <- 1;    MIN_EAF  <- 0.01
+HTN_NAME <- "HTN (Verma 2024)"
+
+dir.create(OUTDIR, recursive = TRUE, showWarnings = FALSE)
+ts <- function(...) message(format(Sys.time(), "[%H:%M:%S] "), ...)
+clean_name <- function(s) gsub("[^A-Za-z0-9]", "_", s)
+
+fmt_p <- function(p) {
+  if (is.null(p) || length(p) == 0) return(NA_character_)
+  p <- suppressWarnings(as.numeric(p[1]))
+  if (is.na(p))  return(NA_character_)
+  if (p < 0.001) formatC(p, format = "e", digits = 2)
+  else           as.character(round(p, 3))
+}
 
 check_palindromic <- function(EA, NEA) {
   (EA == "T" & NEA == "A") | (EA == "A" & NEA == "T") |
@@ -171,10 +163,7 @@ check_palindromic <- function(EA, NEA) {
 build_col_map <- function(dat) {
   list(
     rsid     = if ("rsID"      %in% names(dat)) "rsID"      else NULL,
-    beta     = "BETA",
-    se       = "SE",
-    ea       = "EA",
-    oa       = "NEA",
+    beta     = "BETA", se = "SE", ea = "EA", oa = "NEA",
     eaf      = if ("EAF"       %in% names(dat)) "EAF"       else NULL,
     pval     = "P",
     n        = if ("N"         %in% names(dat)) "N"         else NULL,
@@ -188,27 +177,37 @@ build_col_map <- function(dat) {
 inject_n <- function(dat, cfg) {
   if (isTRUE(cfg$binary)) {
     if (!"N_CASE" %in% names(dat) || all(is.na(dat$N_CASE)))
-      if (!is.null(cfg$n_cases_manual)) { dat$N_CASE <- cfg$n_cases_manual; ts(sprintf("    N_CASE injected: %s", format(cfg$n_cases_manual, big.mark = ","))) }
+      if (!is.null(cfg$n_cases_manual)) {
+        dat$N_CASE <- cfg$n_cases_manual
+        ts(sprintf("    N_CASE    (manuel) : %s", format(cfg$n_cases_manual, big.mark = ",")))
+      }
     if (!"N_CONTROL" %in% names(dat) || all(is.na(dat$N_CONTROL)))
-      if (!is.null(cfg$n_controls_manual)) { dat$N_CONTROL <- cfg$n_controls_manual; ts(sprintf("    N_CONTROL injected: %s", format(cfg$n_controls_manual, big.mark = ","))) }
+      if (!is.null(cfg$n_controls_manual)) {
+        dat$N_CONTROL <- cfg$n_controls_manual
+        ts(sprintf("    N_CONTROL (manuel) : %s", format(cfg$n_controls_manual, big.mark = ",")))
+      }
     if ((!"N" %in% names(dat) || all(is.na(dat$N))) &&
         "N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat) &&
         !all(is.na(dat$N_CASE)) && !all(is.na(dat$N_CONTROL))) {
       dat$N <- dat$N_CASE + dat$N_CONTROL
-      ts(sprintf("    N reconstructed: %s", format(dat$N[1], big.mark = ",")))
+      ts(sprintf("    N total reconstruit : %s", format(dat$N[1], big.mark = ",")))
     }
   } else {
     n_val <- if (!is.null(cfg$n_total_manual)) cfg$n_total_manual else cfg$n_manual
     if (!"N" %in% names(dat) || all(is.na(dat$N)))
-      if (!is.null(n_val)) { dat$N <- n_val; ts(sprintf("    N injected: %s", format(n_val, big.mark = ","))) }
+      if (!is.null(n_val)) {
+        dat$N <- n_val
+        ts(sprintf("    N total   (manuel) : %s", format(n_val, big.mark = ",")))
+      }
   }
   dat
 }
 
-read_gwaslab <- function(path, min_eaf = NULL) {
+read_gwaslab <- function(path, min_eaf = NULL, verbose = TRUE) {
   if (!file.exists(path)) stop("File not found: ", path)
   ts(sprintf("  Reading: %s", basename(path)))
   dt <- data.table::fread(path, data.table = FALSE)
+  ts(sprintf("  Loaded  : %s variants  |  %d columns", format(nrow(dt), big.mark = ","), ncol(dt)))
   required <- c("SNPID", "CHR", "POS", "NEA", "EA", "BETA", "SE", "P")
   missing  <- setdiff(required, names(dt))
   if (length(missing) > 0) stop("Missing columns: ", paste(missing, collapse = ", "))
@@ -216,699 +215,781 @@ read_gwaslab <- function(path, min_eaf = NULL) {
     dt <- dt[!is.na(dt$rsID) & dt$rsID != "" & dt$rsID != ".", ]
   if (!is.null(min_eaf) && "EAF" %in% names(dt))
     dt <- dt[!is.na(dt$EAF) & dt$EAF >= min_eaf & dt$EAF <= (1 - min_eaf), ]
-  ts(sprintf("    %s variants ready", format(nrow(dt), big.mark = ",")))
+  ts(sprintf("  Final : %s variants ready", format(nrow(dt), big.mark = ",")))
   dt
 }
 
 
 # =============================================================================
-# 0. READ UNIVARIABLE RESULTS (for comparison in output)
+# 0. LIRE LES RÉSULTATS UNIVARIABLES
 # =============================================================================
 
-ts("═══ Reading univariable MR results (for reference) ═══")
+ts("═══ Reading univariable results ═══")
 
-uni_results_file <- file.path(OUTDIR_UNI, "FINAL_MR_primary.tsv")
-uni_results <- if (file.exists(uni_results_file)) {
-  tbl <- fread(uni_results_file, data.table = FALSE)
-  ts(sprintf("  Loaded %d univariable primary results", nrow(tbl)))
-  tbl
-} else {
-  ts("  ⚠ No univariable results found — continuing without")
-  NULL
-}
+uni_file <- file.path(OUTDIR, "2SMR", "FINAL_bidirectional_MR_all_exposures.tsv")
+# Chemin du fichier résultat du script 1 (univariable bidirectionnel)
 
 
-# =============================================================================
-# 1. DEFINE MVMR GROUPS
-# =============================================================================
+if (!file.exists(uni_file)) stop("Univariable results not found: ", uni_file)
+# Si le fichier n'existe pas → arrête (ce script DÉPEND du script 1)
 
-mvmr_groups <- list(
+uni_tbl <- fread(uni_file, data.table = FALSE)
+# Lit le tableau des résultats univariables
 
-  # ── GROUPE 1 : HTN + Lipides → cSVD ───────────────────────────
-  # HTN, TG, HDL tous sig pour WMH et PVS
-  # LDL inclus car corrélé génétiquement avec TG/HDL
-  # Question : chacun a-t-il un effet DIRECT indépendant ?
-  list(
-    name = "HTN_Lipids_LDL_HDL_TG",
-    exposure_names = c(
-      "HTN (Verma 2024)",
-      "LDL cholesterol (Graham 2021)",
-      "HDL cholesterol (Graham 2021)",
-      "Triglycerides (Graham 2021)"
-    )
-  ),
 
-  # ── GROUPE 2 : HTN + TG → PVS ─────────────────────────────────
-  # Seuls 2 sig pour PVS — tester avec modèle simple
-  list(
-    name = "HTN_TG",
-    exposure_names = c(
-      "HTN (Verma 2024)",
-      "Triglycerides (Graham 2021)"
-    )
-  ),
 
-  # ── GROUPE 3 : HTN + AF → WMH ─────────────────────────────────
-  # AF et HTN corrélés (HTN → remodelage → AF)
-  # Question : AF a-t-il un effet direct sur WMH indépendamment de HTN ?
-  list(
-    name = "HTN_AF",
-    exposure_names = c(
-      "HTN (Verma 2024)",
-      "Atrial fibrillation (Yuan 2025)"
-    )
-  ),
-
-  # ── GROUPE 4 : HTN + CAC → WMH Shiva ──────────────────────────
-  # HTN cause l'athérosclérose
-  # Question : CAC a-t-il un effet direct ou passe par HTN ?
-  list(
-    name = "HTN_CAC",
-    exposure_names = c(
-      "HTN (Verma 2024)",
-      "Coronary artery calcification (Kavousi 2023)"
-    )
-  ),
-
-  # ── GROUPE 5 : HTN + Carotid IMT → WMH Bianca ────────────────
-  # Même logique que groupe 4 pour l'IMT carotidienne
-  list(
-    name = "HTN_CarotidIMT",
-    exposure_names = c(
-      "HTN (Verma 2024)",
-      "Carotid atherosclerosis / IMT (Gummesson 2025)"
-    )
-  ),
-
-  # ── GROUPE 6 : WMH + PVS → Ischaemic stroke ──────────────────
-  # WMH et PVS tous deux sig pour ischaemic stroke
-  # Marqueurs cSVD indépendants ou redondants ?
-  list(
-    name = "WMH_PVS_to_stroke",
-    exposure_names = c(
-      "WMH Shiva",
-      "Perivascular spaces"
-    )
-  ),
-
-  # ── GROUPE 7 : WMH + PVS → Small vessel stroke ────────────────
-  list(
-    name = "WMH_PVS_to_SVstroke",
-    exposure_names = c(
-      "WMH Bianca",
-      "Perivascular spaces"
-    )
-  )
-)
+ts(sprintf("  %d directions from univariable analysis", nrow(uni_tbl)))
 
 
 # =============================================================================
-# 2. IDENTIFY WHICH GWAS FILES TO LOAD
+# CHARGEMENT DES GWAS 
 # =============================================================================
 
-ts("═══ Identifying GWAS files needed ═══")
+ts("Loading all cSVD GWAS ...")
 
-# Build lookup: trait name → config
-all_trait_cfgs <- c(exposures, csvd_traits)
-trait_lookup   <- setNames(all_trait_cfgs, sapply(all_trait_cfgs, `[[`, "name"))
+gwas_list <- list()
 
-# All unique exposure names needed across all groups
-needed_exposures <- unique(unlist(lapply(mvmr_groups, `[[`, "exposure_names")))
-needed_outcomes  <- sapply(csvd_traits, `[[`, "name")
-
-# Also need stroke outcomes for groups 6-7
-stroke_outcomes <- list(
-  list(name = "Ischaemic stroke (Mishra 2022)",
-       file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/ISCHAEMICstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.01, n_cases_manual = 59890, n_controls_manual = 865389),
-  list(name = "Small vessel stroke (Mishra 2022)",
-       file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/SVstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.0025, n_cases_manual = 6811, n_controls_manual = 865389),
-  list(name = "Any stroke (Mishra 2022)",
-       file = "/network/iss/debette/shared/MR_EUR_datasets/NON_UKBiobank/STROKE_mishra2022/ANYstroke_mishra2022_hg19.gwaslab.tsv.gz",
-       binary = TRUE, prev = 0.015, n_cases_manual = 70720, n_controls_manual = 865389)
-)
-
-# Add stroke outcomes to the lookup and to the outcomes list for groups 6-7
-for (s in stroke_outcomes) {
-  trait_lookup[[s$name]] <- s
-}
-
-ts(sprintf("  Exposures needed : %d", length(needed_exposures)))
-ts(sprintf("  Outcomes (cSVD)  : %d", length(needed_outcomes)))
-
-# Check all exposure names exist
-missing_defs <- setdiff(needed_exposures, names(trait_lookup))
-if (length(missing_defs) > 0)
-  stop("These exposure names are not defined in the traits list:\n  ",
-       paste(missing_defs, collapse = "\n  "),
-       "\n  → Check spelling matches exactly.")
-
-
-# =============================================================================
-# 3. LOAD GWAS DATA
-# =============================================================================
-
-ts("═══ Loading GWAS data ═══")
-
-gwas_cache <- list()
-
-load_trait <- function(trait_name) {
-  if (trait_name %in% names(gwas_cache)) return(invisible(NULL))  # already loaded
-  cfg <- trait_lookup[[trait_name]]
-  ts(sprintf("  Loading : %s", trait_name))
-  dat <- read_gwaslab(cfg$file, min_eaf = MIN_EAF)
-  dat <- inject_n(dat, cfg)
-  if (!"N" %in% names(dat) || all(is.na(dat$N))) {
-    if ("N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat) &&
-        !all(is.na(dat$N_CASE)) && !all(is.na(dat$N_CONTROL)))
+for (trait in csvd_traits) {
+  ts(sprintf("  Loading %s ...", trait$name))
+  dat <- read_gwaslab(trait$file, min_eaf = MIN_EAF)
+  if (!"N" %in% names(dat)) {
+    if ("N_CASE" %in% names(dat) && "N_CONTROL" %in% names(dat)) {
       dat$N <- dat$N_CASE + dat$N_CONTROL
+    } else if (!is.null(trait$n_manual)) {
+      dat$N <- trait$n_manual
+    }
   }
-  gwas_cache[[trait_name]] <<- list(gwas = dat, cfg = cfg)
-  ts(sprintf("    ✓ %s variants", format(nrow(dat), big.mark = ",")))
+  gwas_list[[trait$name]] <- list(gwas = dat, cfg = trait)
+  ts(sprintf("    %d SNPs ✓", nrow(dat)))
 }
 
-# Load exposures
-for (exp_name in needed_exposures) load_trait(exp_name)
+csvd_loaded <- gwas_list
 
-# Load cSVD outcomes
-for (out_name in needed_outcomes) load_trait(out_name)
+ts("Loading exposure GWAS ...")
 
-# Load stroke outcomes (for groups 6-7)
-for (s in stroke_outcomes) load_trait(s$name)
+exp_loaded <- list()
 
-ts(sprintf("  %d GWAS datasets loaded", length(gwas_cache)))
-
-
-# =============================================================================
-# 4. DEFINE WHICH OUTCOMES TO TEST FOR EACH GROUP
-# =============================================================================
-
-# By default: each group is tested against all 4 cSVD outcomes
-# Groups 6-7: also test against stroke outcomes
-
-group_outcomes <- list()
-
-for (group in mvmr_groups) {
-  if (grepl("to_stroke|to_SVstroke", group$name)) {
-    # cSVD → stroke groups: test against stroke outcomes
-    group_outcomes[[group$name]] <- c(
-      "Ischaemic stroke (Mishra 2022)",
-      "Small vessel stroke (Mishra 2022)",
-      "Any stroke (Mishra 2022)"
-    )
-  } else {
-    # Standard groups: test against all 4 cSVD outcomes
-    group_outcomes[[group$name]] <- needed_outcomes
-  }
-}
-
-
-# =============================================================================
-# 5. MVMR CORE FUNCTION
-# =============================================================================
-
-run_mvmr_group <- function(group, outcome_name) {
-
-  group_name     <- group$name
-  exposure_names <- group$exposure_names
-  n_exp          <- length(exposure_names)
-
-  if (!outcome_name %in% names(gwas_cache)) {
-    ts(sprintf("    ✗ Outcome %s not loaded — skipping", outcome_name))
-    return(NULL)
-  }
-
-  outcome_gwas <- gwas_cache[[outcome_name]]$gwas
-  outcome_cfg  <- gwas_cache[[outcome_name]]$cfg
-  outcome_cm   <- build_col_map(outcome_gwas)
-
-  SEP <- paste(rep("─", 65), collapse = "")
-  ts(SEP)
-  ts(sprintf("  MVMR group [%s] → %s", group_name, outcome_name))
-  ts(sprintf("  Exposures : %s", paste(exposure_names, collapse = " + ")))
-  ts(SEP)
-
-  # ── A. Select instruments per exposure ─────────────────────────────────
-  #    Same filtering pipeline as univariable run_direction:
-  #    1. GW-sig (p < 5e-8)
-  #    2. Relaxed (p < 5e-6) if needed
-  #    3. Availability filter (rsID match in outcome)
-  #    4. Palindromic removal
-  #    5. EAF filter
-  #    6. F-statistic
-  # ────────────────────────────────────────────────────────────────────────
-
-  instrument_rsids <- list()
-  f_stats_per_exp  <- list()
-
-  for (exp_name in exposure_names) {
-    eg  <- gwas_cache[[exp_name]]$gwas
-    ecm <- build_col_map(eg)
-
-    # ── 1. GW-sig SNPs ──────────────────────────────────────────────────
-    pv  <- eg[[ecm$pval]]
-    ivs <- eg[!is.na(pv) & pv < PVAL_IV, ]
-    ts(sprintf("    [1-IV] %s : %d GW-sig (p < 5e-8)", exp_name, nrow(ivs)))
-
-    # ── 2. Relaxed threshold if needed ──────────────────────────────────
-    iv_relaxed <- FALSE
-    if (nrow(ivs) < MIN_IVS) {
-      ivs <- eg[!is.na(pv) & pv < 5e-6, ]
-      iv_relaxed <- TRUE
-      ts(sprintf("    [2-Relax] %s : relaxed to p < 5e-6 → %d SNPs", exp_name, nrow(ivs)))
-    }
-
-    if (nrow(ivs) < MIN_IVS) {
-      ts(sprintf("    ✗ 0 instruments for %s — skipping group", exp_name))
-      return(NULL)
-    }
-
-    # valid rsID
-    if (!is.null(ecm$rsid))
-      ivs <- ivs[!is.na(ivs[[ecm$rsid]]) & ivs[[ecm$rsid]] != "" & ivs[[ecm$rsid]] != ".", ]
-
-    # ── 3. Availability filter (same as univariable) ────────────────────
-    avail_rsid <- ivs[[ecm$rsid]] %in% outcome_gwas[[outcome_cm$rsid]]
-    n_avail    <- sum(avail_rsid)
-    n_missing  <- nrow(ivs) - n_avail
-
-    ts(sprintf("    [3-Avail] %s : %d / %d found in outcome | %d missing (%.1f%%)",
-               exp_name, n_avail, nrow(ivs), n_missing,
-               100 * n_missing / max(nrow(ivs), 1)))
-
-    if (n_avail < MIN_IVS) {
-      ts(sprintf("    ✗ %s : only %d SNPs in outcome — skipping group", exp_name, n_avail))
-      return(NULL)
-    }
-
-    ivs <- ivs[avail_rsid, ]
-
-    # ── 4. Palindromic removal (same as univariable) ────────────────────
-    ivs$is_palindromic <- check_palindromic(EA = ivs[[ecm$ea]], NEA = ivs[[ecm$oa]])
-    n_palind <- sum(ivs$is_palindromic, na.rm = TRUE)
-    ivs <- ivs[!is.na(ivs$is_palindromic) & !ivs$is_palindromic, ]
-
-    ts(sprintf("    [4-Palindrome] %s : %d removed | %d remaining",
-               exp_name, n_palind, nrow(ivs)))
-
-    if (nrow(ivs) < MIN_IVS) {
-      ts(sprintf("    ✗ %s : 0 SNPs after palindrome removal — skipping group", exp_name))
-      return(NULL)
-    }
-
-    # ── 5. EAF filter ───────────────────────────────────────────────────
-    if (!is.null(ecm$eaf) && ecm$eaf %in% names(ivs)) {
-      n_before_eaf <- nrow(ivs)
-      ivs <- ivs[!is.na(ivs[[ecm$eaf]]) &
-                   ivs[[ecm$eaf]] >= MIN_EAF &
-                   ivs[[ecm$eaf]] <= (1 - MIN_EAF), ]
-      ts(sprintf("    [5-EAF] %s : %d removed | %d remaining",
-                 exp_name, n_before_eaf - nrow(ivs), nrow(ivs)))
-    }
-
-    if (nrow(ivs) < MIN_IVS) {
-      ts(sprintf("    ✗ %s : 0 SNPs after EAF filter — skipping group", exp_name))
-      return(NULL)
-    }
-
-    # ── 6. F-statistic (same as univariable) ────────────────────────────
-    f_all    <- (ivs[[ecm$beta]] / ivs[[ecm$se]])^2
-    f_median <- round(median(f_all, na.rm = TRUE), 1)
-    ts(sprintf("    [6-Fstat] %s : median = %.1f | min = %.1f | n(F<10) = %d | %d instruments",
-               exp_name, f_median,
-               min(f_all, na.rm = TRUE),
-               sum(f_all < 10, na.rm = TRUE),
-               nrow(ivs)))
-
-    f_stats_per_exp[[exp_name]] <- list(
-      f_median = f_median,
-      f_min    = round(min(f_all, na.rm = TRUE), 1),
-      n_weak   = sum(f_all < 10, na.rm = TRUE),
-      n_ivs    = nrow(ivs),
-      relaxed  = iv_relaxed
-    )
-
-    instrument_rsids[[exp_name]] <- unique(ivs[[ecm$rsid]])
-  }
-
-  # ── B. Pool all instrument rsIDs ───────────────────────────────────────
-  pooled_snps <- unique(unlist(instrument_rsids))
-  ts(sprintf("    [Pool] %d unique instrument SNPs (from %d exposures)",
-             length(pooled_snps), n_exp))
-
-  for (exp_name in exposure_names) {
-    n_own    <- length(instrument_rsids[[exp_name]])
-    n_unique <- sum(!instrument_rsids[[exp_name]] %in%
-                      unlist(instrument_rsids[setdiff(exposure_names, exp_name)]))
-    ts(sprintf("      %s : %d instruments (%d unique to this exposure)",
-               exp_name, n_own, n_unique))
-  }
-
-  if (length(pooled_snps) < n_exp + 1) {
-    ts(sprintf("    ✗ Only %d pooled SNPs — need > %d for %d exposures — skipping",
-               length(pooled_snps), n_exp, n_exp))
-    return(NULL)
-  }
-
-  # ── C. Look up ALL pooled SNPs in each exposure's FULL GWAS ────────────
-  exposure_dats <- list()
-
-  for (i in seq_along(exposure_names)) {
-    exp_name <- exposure_names[i]
-    eg       <- gwas_cache[[exp_name]]$gwas
-    ecm      <- build_col_map(eg)
-
-    exp_sub <- eg[eg[[ecm$rsid]] %in% pooled_snps, ]
-    ts(sprintf("    [Lookup] %s : %d / %d pooled SNPs found in full GWAS",
-               exp_name, nrow(exp_sub), length(pooled_snps)))
-
-    if (nrow(exp_sub) < 3) {
-      ts(sprintf("    ✗ Too few SNPs for %s — skipping group", exp_name))
-      return(NULL)
-    }
-
-    eargs <- list(
-      exp_sub, type = "exposure",
-      snp_col           = ecm$rsid,
-      beta_col          = ecm$beta,
-      se_col            = ecm$se,
-      effect_allele_col = ecm$ea,
-      other_allele_col  = ecm$oa,
-      pval_col          = ecm$pval
-    )
-    if (!is.null(ecm$eaf) && ecm$eaf %in% names(exp_sub))
-      eargs$eaf_col <- ecm$eaf
-    if (!is.null(ecm$n) && ecm$n %in% names(exp_sub))
-      eargs$samplesize_col <- ecm$n
-    if (!is.null(ecm$ncase) && ecm$ncase %in% names(exp_sub))
-      eargs$ncase_col <- ecm$ncase
-    if (!is.null(ecm$ncontrol) && ecm$ncontrol %in% names(exp_sub))
-      eargs$ncontrol_col <- ecm$ncontrol
-
-    exp_fmt <- tryCatch(do.call(format_data, eargs), error = function(e) {
-      ts(sprintf("    ✗ format_data failed for %s : %s", exp_name, conditionMessage(e)))
-      NULL
-    })
-    if (is.null(exp_fmt)) return(NULL)
-
-    exp_fmt$id.exposure <- paste0("mvmr_", i)
-    exp_fmt$exposure    <- exp_name
-
-    exposure_dats[[i]] <- exp_fmt
-  }
-
-  # ── Align columns before rbind ─────────────────────────────────────────
-  all_cols <- unique(unlist(lapply(exposure_dats, names)))
-  exposure_dats <- lapply(exposure_dats, function(df) {
-    missing_cols <- setdiff(all_cols, names(df))
-    for (col in missing_cols) df[[col]] <- NA
-    df[, all_cols, drop = FALSE]
-  })
-  combined_exp <- do.call(rbind, exposure_dats)
-
-  ts(sprintf("    [Combined] %d rows | %d unique SNPs | %d exposures",
-             nrow(combined_exp), length(unique(combined_exp$SNP)), n_exp))
-
-  # ── D. Clump the pooled set ────────────────────────────────────────────
-  clump_input <- combined_exp %>%
-    group_by(SNP) %>%
-    slice_min(pval.exposure, n = 1, with_ties = FALSE) %>%
-    ungroup() %>%
-    as.data.frame()
-
-  clump_result <- tryCatch(
-    clump_data(clump_input, clump_r2 = CLUMP_R2, clump_kb = CLUMP_KB, pop = "EUR"),
-    error = function(e) {
-      ts(sprintf("    ⚠ Clumping API failed : %s — using unclumped", conditionMessage(e)))
-      clump_input
-    }
-  )
-
-  clumped_snps <- unique(clump_result$SNP)
-  ts(sprintf("    [Clump] %d → %d independent SNPs", length(pooled_snps), length(clumped_snps)))
-
-  if (length(clumped_snps) < n_exp + 1) {
-    ts(sprintf("    ✗ Need > %d SNPs for %d exposures — skipping", n_exp, n_exp))
-    return(NULL)
-  }
-
-  combined_exp <- combined_exp[combined_exp$SNP %in% clumped_snps, ]
-
-  # ── E. Format outcome ─────────────────────────────────────────────────
-  out_sub <- outcome_gwas[outcome_gwas[[outcome_cm$rsid]] %in% clumped_snps, ]
-  ts(sprintf("    [Outcome] %d / %d SNPs matched", nrow(out_sub), length(clumped_snps)))
-
-  if (nrow(out_sub) < n_exp + 1) {
-    ts("    ✗ Too few outcome SNPs — skipping")
-    return(NULL)
-  }
-
-  oargs <- list(
-    out_sub, type = "outcome",
-    snp_col           = outcome_cm$rsid,
-    beta_col          = outcome_cm$beta,
-    se_col            = outcome_cm$se,
-    effect_allele_col = outcome_cm$ea,
-    other_allele_col  = outcome_cm$oa,
-    pval_col          = outcome_cm$pval
-  )
-  if (!is.null(outcome_cm$eaf) && outcome_cm$eaf %in% names(out_sub))
-    oargs$eaf_col <- outcome_cm$eaf
-  if (!is.null(outcome_cm$n) && outcome_cm$n %in% names(out_sub))
-    oargs$samplesize_col <- outcome_cm$n
-  if (!is.null(outcome_cm$ncase) && outcome_cm$ncase %in% names(out_sub))
-    oargs$ncase_col <- outcome_cm$ncase
-  if (!is.null(outcome_cm$ncontrol) && outcome_cm$ncontrol %in% names(out_sub))
-    oargs$ncontrol_col <- outcome_cm$ncontrol
-
-  out_fmt <- tryCatch(do.call(format_data, oargs), error = function(e) {
-    ts(sprintf("    ✗ Outcome format failed : %s", conditionMessage(e)))
+for (exp in exposures) {
+  ts(sprintf("  Chargement : %s", exp$name))
+  dat <- tryCatch({
+    d <- read_gwaslab(exp$file, min_eaf = MIN_EAF)
+    d <- inject_n(d, exp)
+    d
+  }, error = function(e) {
+    ts(sprintf("  ✗ Échec chargement %s : %s", exp$name, conditionMessage(e)))
     NULL
   })
-  if (is.null(out_fmt)) return(NULL)
-  out_fmt$outcome    <- outcome_name
-  out_fmt$id.outcome <- "mvmr_outcome"
-
-  # ── F. mv_harmonise_data ──────────────────────────────────────────────
-  mvdat <- tryCatch(
-    mv_harmonise_data(combined_exp, out_fmt, harmonise_strictness = 2),
-    error = function(e) {
-      ts(sprintf("    ✗ mv_harmonise_data failed : %s", conditionMessage(e)))
-      NULL
-    }
-  )
-  if (is.null(mvdat)) return(NULL)
-
-  n_snps_final <- nrow(mvdat$exposure_beta)
-  n_exp_final  <- ncol(mvdat$exposure_beta)
-  ts(sprintf("    [Harmonised] %d SNPs × %d exposures", n_snps_final, n_exp_final))
-
-  if (n_snps_final < n_exp_final + 1) {
-    ts(sprintf("    ✗ Under-identified (%d SNPs for %d exposures) — skipping",
-               n_snps_final, n_exp_final))
-    return(NULL)
+  if (!is.null(dat)) {
+    exp_loaded[[exp$name]] <- list(gwas = dat, cfg = exp)
+    ts(sprintf("    %s SNPs ✓", format(nrow(dat), big.mark = ",")))
   }
+}
+ts(sprintf("  %d / %d expositions chargées", length(exp_loaded), length(exposures)))
 
-  # ── G. Run MVMR (IVW, no intercept) ───────────────────────────────────
-  ts("    Running mv_multiple (IVW) ...")
-  mvmr_ivw <- tryCatch(
-    mv_multiple(mvdat, intercept = FALSE),
-    error = function(e) {
-      ts(sprintf("    ✗ mv_multiple failed : %s", conditionMessage(e)))
-      NULL
-    }
-  )
+# ── Vérifier que HTN est chargé ──────────────────────────────────────────────
+if (!HTN_NAME %in% names(exp_loaded)) stop("HTN GWAS not loaded — cannot proceed")
+# Si HTN n'est pas chargé → impossible de faire MVMR ajusté HTN
 
-  if (is.null(mvmr_ivw) || is.null(mvmr_ivw$result) || nrow(mvmr_ivw$result) == 0) {
-    ts("    ✗ No MVMR result")
-    return(NULL)
-  }
+htn_gwas <- exp_loaded[[HTN_NAME]]$gwas
+htn_cm   <- build_col_map(htn_gwas)
+# Carte des colonnes de HTN (rsid, beta, se, ea, oa, eaf, pval, n, etc.)
 
-  # ── H. Run MVMR with intercept (Egger-like pleiotropy check) ──────────
-  ts("    Running mv_multiple (with intercept = MVMR-Egger) ...")
-  mvmr_egger <- tryCatch(
-    mv_multiple(mvdat, intercept = TRUE),
-    error = function(e) { ts("    ⚠ MVMR-Egger failed"); NULL }
-  )
+# =============================================================================
+# BOUCLE MVMR : [Exposure + HTN] → Outcome pour chaque direction
+# =============================================================================
 
-  # ── I. Annotate results ───────────────────────────────────────────────
-  r <- mvmr_ivw$result
-  r$group      <- group_name
-  r$outcome    <- outcome_name
-  r$n_snps     <- n_snps_final
-  r$n_exp      <- n_exp_final
-  r$exposures  <- paste(exposure_names, collapse = " + ")
+ts("═══════════════════════════════════════════════════════════════")
+ts("  MVMR : [Exposure + HTN] → Outcome — toutes les directions")
+ts("═══════════════════════════════════════════════════════════════")
 
-  # ── F-stat info per exposure ───────────────────────────────────────────
-  r$f_median          <- NA_real_
-  r$f_min             <- NA_real_
-  r$n_weak_instruments <- NA_integer_
-  r$n_instruments      <- NA_integer_
-  r$iv_relaxed         <- NA
+# Construire les directions PRIMAIRES uniquement
+directions <- uni_tbl[uni_tbl$Analysis_type == "primary",
+                      c("Exposure", "Outcome")]
+directions <- directions[directions$Exposure != HTN_NAME, ]
+# Retire la direction HTN → outcome (sinon on aurait HTN + HTN → outcome)
+# Car HTN est TOUJOURS co-exposition, jamais exposition principale ici
 
-  for (j in seq_len(nrow(r))) {
-    exp_j <- r$exposure[j]
-    if (exp_j %in% names(f_stats_per_exp)) {
-      fs <- f_stats_per_exp[[exp_j]]
-      r$f_median[j]           <- fs$f_median
-      r$f_min[j]              <- fs$f_min
-      r$n_weak_instruments[j] <- fs$n_weak
-      r$n_instruments[j]      <- fs$n_ivs
-      r$iv_relaxed[j]         <- fs$relaxed
-    }
-  }
 
-  # ── Egger intercept ────────────────────────────────────────────────────
-  r$mvmr_egger_intercept   <- NA_real_
-  r$mvmr_egger_intercept_p <- NA_real_
-  if (!is.null(mvmr_egger) && !is.null(mvmr_egger$result)) {
-    tryCatch({
-      eg_r <- mvmr_egger$result
-      int_row <- eg_r[grepl("intercept", eg_r$exposure, ignore.case = TRUE), ]
-      if (nrow(int_row) > 0) {
-        r$mvmr_egger_intercept   <- int_row$b[1]
-        r$mvmr_egger_intercept_p <- int_row$pval[1]
-      }
-    }, error = function(e) NULL)
-  }
+ts(sprintf("  %d directions à tester", nrow(directions)))
 
-  # ── Compare with univariable IVW if available ─────────────────────────
-  r$univariable_IVW_b    <- NA_real_
-  r$univariable_IVW_pval <- NA_real_
-  if (!is.null(uni_results)) {
-    for (j in seq_len(nrow(r))) {
-      exp_j <- r$exposure[j]
-      out_j <- r$outcome[j]
-      match_row <- uni_results[uni_results$Exposure == exp_j &
-                                 uni_results$Outcome  == out_j, ]
-      if (nrow(match_row) > 0) {
-        bse <- match_row$IVW_Beta_SE[1]
-        if (!is.na(bse)) {
-          parts <- regmatches(bse, regexpr("^[-0-9.]+", bse))
-          if (length(parts) > 0) r$univariable_IVW_b[j] <- as.numeric(parts)
-        }
-        r$univariable_IVW_pval[j] <- match_row$IVW_p_raw[1]
-      }
-    }
-  }
+mvmr_results <- list()
 
-  ts("    ✓ MVMR results:")
-  print(r[, intersect(c("exposure", "outcome", "nsnp", "b", "se", "pval",
-                         "n_snps", "group", "f_median", "n_instruments"),
-                       names(r))])
+# ── Fichier incrémental ──────────────────────────────────────────────────
+incremental_tsv <- file.path(OUTDIR_MVMR, "MVMR_HTN_adjusted_incremental.tsv")
+header_written  <- FALSE
 
-  # ── J. Save per-group TSV ──────────────────────────────────────────────
-  pfx <- file.path(OUTDIR_MVMR, sprintf("MVMR_%s__%s",
-                                          clean_name(group_name),
-                                          clean_name(outcome_name)))
-  tryCatch({
-    fwrite(r, paste0(pfx, "_results.tsv"), sep = "\t")
-    ts(sprintf("    ✓ Saved → %s_results.tsv", basename(pfx)))
-  }, error = function(e)
-    ts(sprintf("    ⚠ Save failed : %s", conditionMessage(e))))
 
-  r
+# Helper : sélectionner les instruments (mêmes filtres que run_direction)
+select_ivs <- function(gwas, cm, name, out_gwas, ocm) {
+    
+  pv  <- gwas[[cm$pval]]
+  ivs <- gwas[!is.na(pv) & pv < PVAL_IV, ]   # 1. GW-sig : p < 5e-8
+  if (nrow(ivs) < MIN_IVS) ivs <- gwas[!is.na(pv) & pv < 5e-6, ]   # 2. Relaxed : si 0 instrument → essaie p < 5e-6
+  if (nrow(ivs) < MIN_IVS) return(NULL) 
+  if (!is.null(cm$rsid))
+    ivs <- ivs[!is.na(ivs[[cm$rsid]]) & ivs[[cm$rsid]] != "" & ivs[[cm$rsid]] != ".", ]  # Filtre rsID valides
+
+
+  ivs <- ivs[ivs[[cm$rsid]] %in% out_gwas[[ocm$rsid]], ] # Availability filter
+  if (nrow(ivs) < MIN_IVS) return(NULL)
+   ivs$is_palindromic <- check_palindromic(EA = ivs[[cm$ea]], NEA = ivs[[cm$oa]])    # 4. Palindromic removal : retire A/T et G/C
+  ivs <- ivs[!is.na(ivs$is_palindromic) & !ivs$is_palindromic, ]
+  if (nrow(ivs) < MIN_IVS) return(NULL)
+  # EAF filter
+  if (!is.null(cm$eaf) && cm$eaf %in% names(ivs))
+    ivs <- ivs[!is.na(ivs[[cm$eaf]]) & ivs[[cm$eaf]] >= MIN_EAF & ivs[[cm$eaf]] <= (1 - MIN_EAF), ]   # 5. EAF filter : 0.01–0.99
+  if (nrow(ivs) < MIN_IVS) return(NULL)
+  unique(ivs[[cm$rsid]])
 }
 
-  # ── XLSX ─────────────────────────────────────────────────────────────────
+# Helper : format_data pour une exposition
+fmt_exposure <- function(gwas, cm, name, pooled_snps, id_num) {
+    # Cherche TOUS les SNPs poolés dans le GWAS complet d'une exposition
+  # puis formate pour TwoSampleMR
+
+  sub <- gwas[gwas[[cm$rsid]] %in% pooled_snps, ]
+    # Cherche les SNPs poolés dans le GWAS complet
+  # Ex: rs123 est instrument pour TG → on cherche AUSSI son effet dans HTN
+
+  if (nrow(sub) < 3) return(NULL)
+
+  # Prépare les arguments pour format_data()
+  eargs <- list(sub, type = "exposure", snp_col = cm$rsid, beta_col = cm$beta,
+                se_col = cm$se, effect_allele_col = cm$ea, other_allele_col = cm$oa, pval_col = cm$pval)
+ 
+
+  if (!is.null(cm$eaf) && cm$eaf %in% names(sub)) eargs$eaf_col <- cm$eaf     
+  if (!is.null(cm$n) && cm$n %in% names(sub)) eargs$samplesize_col <- cm$n    
+  if (!is.null(cm$ncase) && cm$ncase %in% names(sub)) eargs$ncase_col <- cm$ncase   
+  if (!is.null(cm$ncontrol) && cm$ncontrol %in% names(sub)) eargs$ncontrol_col <- cm$ncontrol
+
+
+  ef <- do.call(format_data, eargs)   # Appelle format_data() → convertit en format TwoSampleMR
+  ef$id.exposure <- paste0("mvmr_", id_num)   # id unique par exposure
+  ef$exposure    <- name   # Label lisible ("Triglycerides (Graham 2021)" ou "HTN (Verma 2024)")
+  ef
+
+}
+#boucle MVMR 
+
+for (i in seq_len(nrow(directions))) {
+
+  exp_name <- directions$Exposure[i]
+  out_name <- directions$Outcome[i]
+
+  ts(sprintf("══ MVMR [%d/%d] : [%s + HTN] → %s ══", i, nrow(directions), exp_name, out_name))
+
+
+
+  # ── Retrouver les GWAS ──────────────────────────────────────────
+  exp_src <- if (exp_name %in% names(exp_loaded))  exp_loaded[[exp_name]]
+             else if (exp_name %in% names(csvd_loaded)) csvd_loaded[[exp_name]]
+             else NULL
+               # Cherche l'exposition dans exp_loaded (27 traits)
+                 # ou dans csvd_loaded (4 traits cSVD, car WMH peut être exposition)
+
+  out_src <- if (out_name %in% names(csvd_loaded)) csvd_loaded[[out_name]]
+             else if (out_name %in% names(exp_loaded))  exp_loaded[[out_name]]
+             else NULL
+  # Pareil pour l'outcome
+
+
+  if (is.null(exp_src) || is.null(out_src)) {
+    ts("    ✗ GWAS not found — skipping"); next
+  }
+
+  tryCatch({
+
+    exp_gwas <- exp_src$gwas;  
+    exp_cm <- build_col_map(exp_gwas)
+    out_gwas <- out_src$gwas;  
+    out_cm <- build_col_map(out_gwas)
+
+    # ── 1. Instruments (mêmes filtres que run_direction) ──────────────────
+    rsids_exp <- select_ivs(exp_gwas, exp_cm, exp_name, out_gwas, out_cm) 
+    rsids_htn <- select_ivs(htn_gwas, htn_cm, HTN_NAME, out_gwas, out_cm)
+
+    if (is.null(rsids_exp)) { ts(sprintf("    ✗ 0 instruments for %s — skipping", exp_name)); next }
+    if (is.null(rsids_htn)) { ts("    ✗ 0 instruments for HTN — skipping"); next }
+
+    ts(sprintf("    %s : %d instruments | HTN : %d instruments", exp_name, length(rsids_exp), length(rsids_htn)))
+
+    # ── 2. Pool ──────────────────────────────────────────────────────────
+    pooled_snps <- unique(c(rsids_exp, rsids_htn)) #Combine les instruments des deux expositions en un seul vecteur sans doublons.
+    ts(sprintf("    Pool : %d unique SNPs", length(pooled_snps))) 
+
+    # ── 3. Lookup + format_data ──────────────────────────────────────────
+    d1 <- fmt_exposure(exp_gwas, exp_cm, exp_name, pooled_snps, 1) #Cherche tous les SNPs poolés dans le GWAS complet de TG, puis formate pour TwoSampleMR. 
+    #: rs4 est instrument pour HTN mais on a aussi besoin de son effet sur TG → on le cherche dans le GWAS complet de TG (pas juste ses propres instruments).
+    d2 <- fmt_exposure(htn_gwas, htn_cm, HTN_NAME, pooled_snps, 2)
+    if (is.null(d1) || is.null(d2)) { ts("    ✗ format_data failed — skipping"); next }
+
+    # Align columns before rbind, on ajoute les colonnes manquantes avec NA
+    all_cols <- unique(c(names(d1), names(d2)))
+    for (col in setdiff(all_cols, names(d1))) d1[[col]] <- NA
+    for (col in setdiff(all_cols, names(d2))) d2[[col]] <- NA
+    combined_exp <- rbind(d1[, all_cols], d2[, all_cols])
+
+    ts(sprintf("    Combined : %d rows | %d SNPs", nrow(combined_exp), length(unique(combined_exp$SNP))))
+
+    # ── 4. Clump ─────────────────────────────────────────────────────────
+    clump_input <- combined_exp %>%
+      group_by(SNP) %>%
+      slice_min(pval.exposure, n = 1, with_ties = FALSE) %>%
+      ungroup() %>% as.data.frame() # Pour chaque SNP (qui apparaît 2 fois : TG et HTN), garde la ligne avec la p-value la plus petite.
+
+    exp_c <- tryCatch(
+      clump_data(clump_input, clump_r2 = CLUMP_R2, clump_kb = CLUMP_KB, pop = "EUR"),
+      error = function(e) { ts("    ⚠ Clumping failed — using unclumped"); clump_input }
+    )#Envoie les SNPs à l'API OpenGWAS pour retirer ceux en LD (corrélés).
+
+    clumped_snps <- unique(exp_c$SNP) # Besoin d'au moins 3 SNPs pour une régression à 2 expositions (sinon sous-identifié).
+    ts(sprintf("    Clumping : %d → %d independent SNPs", length(pooled_snps), length(clumped_snps)))
+    if (length(clumped_snps) < 3) { ts("    ✗ Too few — skipping"); next } 
+
+    combined_exp <- combined_exp[combined_exp$SNP %in% clumped_snps, ] #Filtre combined_exp pour ne garder que les SNPs qui ont survécu au clumping.
+
+    # ── 5. Format outcome ────────────────────────────────────────────────
+    out_sub <- out_gwas[out_gwas[[out_cm$rsid]] %in% clumped_snps, ] #Cherche les SNPs clumpés dans le GWAS de l'outcome (ex: WMH Shiva).
+    ts(sprintf("    Outcome match : %d / %d by rsID", nrow(out_sub), length(clumped_snps)))
+    if (nrow(out_sub) < 3) { ts("    ✗ Too few outcome SNPs — skipping"); next }
+
+#Formate l'outcome pour TwoSampleMR et lui donne un label + id unique.
+    oargs <- list(out_sub, type = "outcome", snp_col = out_cm$rsid, beta_col = out_cm$beta,
+                  se_col = out_cm$se, effect_allele_col = out_cm$ea, other_allele_col = out_cm$oa, pval_col = out_cm$pval)
+    if (!is.null(out_cm$eaf) && out_cm$eaf %in% names(out_sub)) oargs$eaf_col <- out_cm$eaf
+    if (!is.null(out_cm$n) && out_cm$n %in% names(out_sub)) oargs$samplesize_col <- out_cm$n
+    if (!is.null(out_cm$ncase) && out_cm$ncase %in% names(out_sub)) oargs$ncase_col <- out_cm$ncase
+    if (!is.null(out_cm$ncontrol) && out_cm$ncontrol %in% names(out_sub)) oargs$ncontrol_col <- out_cm$ncontrol
+
+    out_fmt <- do.call(format_data, oargs)
+    out_fmt$outcome    <- out_name
+    out_fmt$id.outcome <- "mvmr_outcome"
+
+    # ── 6. mv_harmonise_data ─────────────────────────────────────────────
+    ts("    Harmonising ...")
+     mvdat <- mv_harmonise_data(combined_exp, out_fmt, harmonise_strictness = 3)    # Aligne les allèles entre les 2 expositions et l'outcome pour chaque SNP.
+
+    n_snps <- nrow(mvdat$exposure_beta)
+    n_exp  <- ncol(mvdat$exposure_beta)
+    ts(sprintf("    Harmonised : %d SNPs × %d exposures", n_snps, n_exp))
+    if (n_snps < n_exp + 1) { ts("    ✗ Under-identified — skipping"); next }
+
+    # ── 7. mv_multiple ───────────────────────────────────────────────────
+    ts("    Running mv_multiple ...")
+    mvmr_res <- mv_multiple(mvdat, intercept = FALSE, instrument_specific = FALSE,
+                            pval_threshold = 5e-08, plots = FALSE)
+
+#Enrichit le résultat avec le nom de l'outcome, le nombre de SNPs, et un identifiant unique de la paire.
+    r <- mvmr_res$result
+    r$outcome <- out_name
+    r$n_snps  <- n_snps
+    r$pair_id <- sprintf("%s_HTN_to_%s", clean_name(exp_name), clean_name(out_name))  # Sert plus tard à matcher la ligne HTN avec la bonne ligne exposition dans le tableau de comparaison
+
+    # Ajouter univariable pour comparaison, cherche le résultat univariable correspondant (TG → WMH) et ajoute sa p-value au résultat MVMR.
+    uni_row <- uni_tbl[uni_tbl$Exposure == exp_name & uni_tbl$Outcome == out_name, ]
+    r$univariable_IVW_pval <- if (nrow(uni_row) > 0) uni_row$IVW_p_raw[1] else NA_real_
+
+    ts("    ✓ Results:")
+    print(r[, intersect(c("exposure", "outcome", "b", "se", "pval", "nsnp"), names(r))])
+
+    # enregistre progressivmeent dans un fichier TSV. 
+  fwrite(r, incremental_tsv,
+           sep = "\t", append = header_written, col.names = !header_written)
+    header_written <- TRUE
+    ts(sprintf("    ✓ Appended to %s (%d lines total)",
+               basename(incremental_tsv),
+               length(mvmr_results) * 2 + nrow(r)))
+
+    key <- sprintf("%s_HTN_to_%s", clean_name(exp_name), clean_name(out_name))
+    mvmr_results[[key]] <- r #Stocke le résultat dans la liste mvmr_results sous une clé unique.
+
+  }, error = function(e) ts(sprintf("    ✗ Error : %s", conditionMessage(e))))
+}
+
+# =============================================================================
+# TABLEAU FINAL MVMR
+# =============================================================================
+
+if (length(mvmr_results) > 0) {
+
+  mvmr_tbl <- do.call(rbind, mvmr_results) # Empile tous les résultats en un seul dataframe.
+  rownames(mvmr_tbl) <- NULL
+  mvmr_tbl <- mvmr_tbl[order(mvmr_tbl$pval, na.last = TRUE), ] #Trie par p-value croissante, NA à la fin.
+
+  N_TESTS_MVMR   <- nrow(mvmr_tbl[mvmr_tbl$exposure != HTN_NAME, ])
+    bonf_threshold  <- 0.05 / max(N_TESTS_MVMR, 1)
+  mvmr_tbl$sig_nominal    <- mvmr_tbl$pval < 0.05 
+  mvmr_tbl$sig_bonferroni <- mvmr_tbl$pval < bonf_threshold
+  mvmr_tbl$bonf_threshold <- fmt_p(bonf_threshold)
+
+  # ── Séparer expositions d'intérêt vs HTN ────────────────────────────────
+  mvmr_expo <- mvmr_tbl[mvmr_tbl$exposure != HTN_NAME, ] #Garde uniquement les lignes des expositions d'intérêt (TG, LDL, etc.).
+  mvmr_htn  <- mvmr_tbl[mvmr_tbl$exposure == HTN_NAME, ] #Garde uniquement les lignes HTN
+  mvmr_tbl$role <- ifelse(mvmr_tbl$exposure == HTN_NAME,
+                          "adjustment", "primary_exposure") #Ajoute une colonne role pour marquer chaque ligne
+
+  # ── Créer le tableau de comparaison univariable vs MVMR ─────────────────
+  comparison <- data.frame(stringsAsFactors = FALSE)
+
+# Boucle sur chaque ligne de mvmr_expo 
+  for (j in seq_len(nrow(mvmr_expo))) { # Récupère le nom de l'exposition et de l'outcome pour cette ligne.
+    exp_j <- mvmr_expo$exposure[j] 
+    out_j <- mvmr_expo$outcome[j]
+
+    # Résultat MVMR,  Récupère le β, SE et p-value MVMR pour cette exposition.
+    mvmr_b    <- mvmr_expo$b[j]
+    mvmr_se   <- mvmr_expo$se[j]
+    mvmr_pval <- mvmr_expo$pval[j]
+    mvmr_nsnp <- if ("nsnp" %in% names(mvmr_expo)) mvmr_expo$nsnp[j] else NA
+    mvmr_nsnps_total <- if ("n_snps" %in% names(mvmr_expo)) mvmr_expo$n_snps[j] else NA
+
+    # Résultat HTN pour la même direction
+    pair_key  <- sprintf("%s_HTN_to_%s", clean_name(exp_j), clean_name(out_j)) # Cherche la ligne HTN correspondant à cette même paire (ex: [TG + HTN] → WMH).
+    htn_match <- mvmr_htn[mvmr_htn$pair_id == pair_key, ] #On veut le β de HTN dans ce modèle précis (ajusté pour TG, pas pour LDL)
+    htn_b    <- if (nrow(htn_match) > 0) htn_match$b[1]    else NA_real_ #Extrait le β et p-value de HTN dans ce modèle. NA si pas trouvé.
+    htn_pval <- if (nrow(htn_match) > 0) htn_match$pval[1] else NA_real_
+
+    # Résultat univariable correspondant (dans uni_tbl, extrait la p-value, le nombre de SNPs, et le string "Beta (SE)")
+    uni_row <- uni_tbl[uni_tbl$Exposure == exp_j & uni_tbl$Outcome == out_j, ] 
+    uni_b    <- NA_real_
+    uni_pval <- NA_real_
+    uni_nsnp <- NA_integer_
+    if (nrow(uni_row) > 0) {
+      uni_pval <- uni_row$IVW_p_raw[1]
+      uni_nsnp <- uni_row$N_SNPs[1]
+      bse <- uni_row$IVW_Beta_SE[1]
+      if (!is.na(bse)) {
+        parts <- regmatches(bse, regexpr("^[-0-9.]+", bse))
+        if (length(parts) > 0) uni_b <- as.numeric(parts)
+      }
+    }
+
+    # Interprétation automatique
+    interpretation <- if (is.na(uni_pval) || is.na(mvmr_pval)) {
+      "Comparison not possible"
+    } else if (uni_pval < 0.05 & mvmr_pval < 0.05) {
+      "Direct effect confirmed (independent of HTN)" #significatif en univariable ET en MVMR
+    } else if (uni_pval < 0.05 & mvmr_pval >= 0.05) {
+      "Effect attenuated (may be mediated by HTN)" #Significatif en univariable mais PAS en MVMR → l'effet disparaît quand on ajuste pour HTN → probablement médié par HTN.
+    } else if (uni_pval >= 0.05 & mvmr_pval < 0.05) {
+      "Effect unmasked (HTN was negative confounder)" #"Effect unmasked (HTN was negative confounder)"
+    } else {
+      "No effect in either analysis"
+    }
+
+# Crée une ligne avec toutes les infos et l'ajoute au tableau de comparaison.
+    row <- data.frame(
+      Exposure                = exp_j,
+      Outcome                 = out_j,
+      Univariable_IVW_b       = uni_b,
+      Univariable_IVW_p       = fmt_p(uni_pval),
+      Univariable_IVW_p_raw   = uni_pval,
+      Univariable_N_SNPs      = uni_nsnp,
+      MVMR_b_adjusted_HTN     = round(mvmr_b, 4),
+      MVMR_se_adjusted_HTN    = round(mvmr_se, 4),
+      MVMR_p_adjusted_HTN     = fmt_p(mvmr_pval),
+      MVMR_p_adjusted_HTN_raw = mvmr_pval,
+      MVMR_N_SNPs_total       = mvmr_nsnps_total,
+      HTN_direct_b            = round(htn_b, 4),
+      HTN_direct_p            = fmt_p(htn_pval),
+      Interpretation          = interpretation,
+      stringsAsFactors = FALSE
+    )
+    comparison <- rbind(comparison, row)
+  }
+  
+  #Trie par p-value MVMR croissante.
+  comparison <- comparison[order(comparison$MVMR_p_adjusted_HTN_raw, na.last = TRUE), ]
+  rownames(comparison) <- NULL
+
+  # ── Export TSV ──────────────────────────────────────────────────────────────
+  out_tsv <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted.tsv")
+  fwrite(mvmr_tbl, out_tsv, sep = "\t")
+  ts(sprintf("  TSV : %d lignes → %s", nrow(mvmr_tbl), basename(out_tsv)))
+# Sauvegarde le tableau complet (expo + HTN) en TSV.
+  
+
+  comp_tsv <- file.path(OUTDIR_MVMR, "MVMR_vs_univariable_comparison.tsv")
+  fwrite(comparison, comp_tsv, sep = "\t")
+  ts(sprintf("  Comparaison TSV → %s", basename(comp_tsv)))
+  #Sauvegarde le tableau de comparaison en TSV.
+
+  # ── Export XLSX ─────────────────────────────────────────────────────────────
   if (HAS_XLSX) {
 
     wb <- openxlsx::createWorkbook()
 
-    h_style <- openxlsx::createStyle(
+    header_style <- openxlsx::createStyle(
       fontColour = "#FFFFFF", fgFill = "#2F5597",
-      halign = "CENTER", textDecoration = "Bold", wrapText = TRUE)
-    s_style <- openxlsx::createStyle(fgFill = "#E2EFDA")
-    b_style <- openxlsx::createStyle(fgFill = "#FFD966")
+      halign = "CENTER", textDecoration = "Bold", wrapText = TRUE
+    )
+    sig_style  <- openxlsx::createStyle(fgFill = "#E2EFDA")
+    bonf_style <- openxlsx::createStyle(fgFill = "#FFD966")
+#vert clair pour p < 0.05, jaune pour p < Bonferroni.
 
-    # ── All results sheet ──────────────────────────────────────────────────
-    openxlsx::addWorksheet(wb, "All MVMR results")
-    openxlsx::writeData(wb, "All MVMR results", mvmr_tbl, headerStyle = h_style)
+#Fonction réutilisable pour créer un onglet Excel formaté.
+#
+    write_mvmr_sheet <- function(wb, sheet_name, data, p_col = "pval") {
+      if (nrow(data) == 0) {
+        ts(sprintf("  ⚠ Feuille '%s' vide — non créée", sheet_name))
+        return(invisible(NULL))
+      }
 
-    sig_rows  <- which(mvmr_tbl$sig_nominal & !mvmr_tbl$sig_bonferroni)
-    bonf_rows <- which(mvmr_tbl$sig_bonferroni)
+      openxlsx::addWorksheet(wb, sheet_name)  #Ajoute un onglet et écrit les données avec les en-têtes stylisés.
+      openxlsx::writeData(wb, sheet_name, data, headerStyle = header_style)
+
+      if (p_col %in% names(data)) {
+        sig_rows  <- which(!is.na(data[[p_col]]) & data[[p_col]] < 0.05) #Identifie les lignes significatives (nominales et Bonferroni).
+        bonf_rows <- which(!is.na(data[[p_col]]) & data[[p_col]] < bonf_threshold)
+      } else {
+        sig_rows  <- integer(0)
+        bonf_rows <- integer(0)
+      }
+
+      if (length(sig_rows) > 0)
+        openxlsx::addStyle(wb, sheet_name, style = sig_style,
+                           rows = sig_rows + 1, cols = seq_len(ncol(data)),
+                           gridExpand = TRUE) # Colorie les lignes significatives en vert. +1 car la ligne 1 est l'en-tête.
+      if (length(bonf_rows) > 0)
+        openxlsx::addStyle(wb, sheet_name, style = bonf_style,
+                           rows = bonf_rows + 1, cols = seq_len(ncol(data)),
+                           gridExpand = TRUE)
+
+      openxlsx::setColWidths(wb, sheet_name, cols = seq_len(ncol(data)), widths = "auto")
+      openxlsx::freezePane(wb, sheet_name, firstRow = TRUE) #Ajuste la largeur des colonnes et fige la première ligne (en-têtes visibles quand on scrolle).
+
+      ts(sprintf("  Feuille '%s' : %d lignes | %d sig (p<0.05) | %d Bonferroni (p<%.2e)",
+                 sheet_name, nrow(data), length(sig_rows), length(bonf_rows), bonf_threshold))
+    }
+
+    # ── Onglet 1 : Tous les résultats MVMR ────────────────────────────────
+    write_mvmr_sheet(wb, "MVMR all results", mvmr_tbl, p_col = "pval")
+
+    # ── Onglet 2 : Expositions d'intérêt seulement (sans HTN) ─────────────
+    write_mvmr_sheet(wb, "MVMR exposures only", mvmr_expo, p_col = "pval")
+
+    # ── Onglet 3 : HTN seulement ──────────────────────────────────────────
+    write_mvmr_sheet(wb, "MVMR HTN adjustment", mvmr_htn, p_col = "pval")
+
+    # ── Onglet 4 : Comparaison univariable vs MVMR ────────────────────────
+    openxlsx::addWorksheet(wb, "MVMR vs Univariable")
+    openxlsx::writeData(wb, "MVMR vs Univariable", comparison, headerStyle = header_style) 
+
+    # Colorer par p-value MVMR
+    sig_rows  <- which(!is.na(comparison$MVMR_p_adjusted_HTN_raw) &
+                         comparison$MVMR_p_adjusted_HTN_raw < 0.05)
+    bonf_rows <- which(!is.na(comparison$MVMR_p_adjusted_HTN_raw) &
+                         comparison$MVMR_p_adjusted_HTN_raw < bonf_threshold)
 
     if (length(sig_rows) > 0)
-      openxlsx::addStyle(wb, "All MVMR results", style = s_style,
-                         rows = sig_rows + 1, cols = seq_len(ncol(mvmr_tbl)),
+      openxlsx::addStyle(wb, "MVMR vs Univariable", style = sig_style,
+                         rows = sig_rows + 1, cols = seq_len(ncol(comparison)),
                          gridExpand = TRUE)
     if (length(bonf_rows) > 0)
-      openxlsx::addStyle(wb, "All MVMR results", style = b_style,
-                         rows = bonf_rows + 1, cols = seq_len(ncol(mvmr_tbl)),
+      openxlsx::addStyle(wb, "MVMR vs Univariable", style = bonf_style,
+                         rows = bonf_rows + 1, cols = seq_len(ncol(comparison)),
                          gridExpand = TRUE)
 
-    openxlsx::setColWidths(wb, "All MVMR results",
-                           cols = seq_len(ncol(mvmr_tbl)), widths = "auto")
-    openxlsx::freezePane(wb, "All MVMR results", firstRow = TRUE)
+    # Colorer les interprétations
+    confirmed_style  <- openxlsx::createStyle(fontColour = "#006100", fgFill = "#C6EFCE")
+    attenuated_style <- openxlsx::createStyle(fontColour = "#9C5700", fgFill = "#FFEB9C")
+    unmasked_style   <- openxlsx::createStyle(fontColour = "#003399", fgFill = "#D6E4F0")
 
-    # ── Per-group sheets ───────────────────────────────────────────────────
-    for (grp_name in unique(mvmr_tbl$group)) {
-      sheet_name <- substr(grp_name, 1, 31)  # Excel max 31 chars
-      grp_data   <- mvmr_tbl[mvmr_tbl$group == grp_name, ]
-      openxlsx::addWorksheet(wb, sheet_name)
-      openxlsx::writeData(wb, sheet_name, grp_data, headerStyle = h_style)
+    interp_col <- which(names(comparison) == "Interpretation")
 
-      sig_r  <- which(grp_data$sig_nominal & !grp_data$sig_bonferroni)
-      bonf_r <- which(grp_data$sig_bonferroni)
-      if (length(sig_r) > 0)
-        openxlsx::addStyle(wb, sheet_name, style = s_style,
-                           rows = sig_r + 1, cols = seq_len(ncol(grp_data)),
-                           gridExpand = TRUE)
-      if (length(bonf_r) > 0)
-        openxlsx::addStyle(wb, sheet_name, style = b_style,
-                           rows = bonf_r + 1, cols = seq_len(ncol(grp_data)),
-                           gridExpand = TRUE)
+    confirmed_rows  <- which(comparison$Interpretation == "Direct effect confirmed (independent of HTN)")
+    attenuated_rows <- which(comparison$Interpretation == "Effect attenuated (may be mediated by HTN)")
+    unmasked_rows   <- which(comparison$Interpretation == "Effect unmasked (HTN was negative confounder)")
 
-      openxlsx::setColWidths(wb, sheet_name,
-                             cols = seq_len(ncol(grp_data)), widths = "auto")
-      openxlsx::freezePane(wb, sheet_name, firstRow = TRUE)
-    }
+    if (length(confirmed_rows) > 0)
+      openxlsx::addStyle(wb, "MVMR vs Univariable", style = confirmed_style, #Colorie la cellule "Interpretation" en vert pour les effets confirmés.
+                         rows = confirmed_rows + 1, cols = interp_col, gridExpand = TRUE)
+    if (length(attenuated_rows) > 0)
+      openxlsx::addStyle(wb, "MVMR vs Univariable", style = attenuated_style,
+                         rows = attenuated_rows + 1, cols = interp_col, gridExpand = TRUE)
+    if (length(unmasked_rows) > 0)
+      openxlsx::addStyle(wb, "MVMR vs Univariable", style = unmasked_style,
+                         rows = unmasked_rows + 1, cols = interp_col, gridExpand = TRUE)
 
-    # ── Comparison sheet (MVMR vs univariable) ────────────────────────────
-    if (any(!is.na(mvmr_tbl$univariable_IVW_b))) {
-      comp <- mvmr_tbl[, intersect(
-        c("group", "exposure", "outcome", "b", "se", "pval",
-          "univariable_IVW_b", "univariable_IVW_pval",
-          "n_snps", "mvmr_egger_intercept", "mvmr_egger_intercept_p"),
-        names(mvmr_tbl)
-      )]
-      openxlsx::addWorksheet(wb, "MVMR vs Univariable")
-      openxlsx::writeData(wb, "MVMR vs Univariable", comp, headerStyle = h_style)
-      openxlsx::setColWidths(wb, "MVMR vs Univariable",
-                             cols = seq_len(ncol(comp)), widths = "auto")
-      openxlsx::freezePane(wb, "MVMR vs Univariable", firstRow = TRUE)
-    }
+    openxlsx::setColWidths(wb, "MVMR vs Univariable",
+                           cols = seq_len(ncol(comparison)), widths = "auto")
+    openxlsx::freezePane(wb, "MVMR vs Univariable", firstRow = TRUE)
 
-    mvmr_final_xlsx <- file.path(OUTDIR_MVMR, "FINAL_MVMR_all_results.xlsx")
-    openxlsx::saveWorkbook(wb, mvmr_final_xlsx, overwrite = TRUE)
-    ts(sprintf("  MVMR XLSX → %s", mvmr_final_xlsx))
+    ts(sprintf("  Feuille 'MVMR vs Univariable' : %d lignes | %d confirmed | %d attenuated | %d unmasked",
+               nrow(comparison),
+               length(confirmed_rows), length(attenuated_rows), length(unmasked_rows)))
+
+    out_xlsx <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted.xlsx")
+    openxlsx::saveWorkbook(wb, out_xlsx, overwrite = TRUE)
+    ts(sprintf("  XLSX sauvegardé → %s", basename(out_xlsx)))
+
+  } else {
+    ts("  ⚠ openxlsx non disponible")
+  }
+# ── Forest plots ────────────────────────────────────────────────────────
+  ts("═══ Generating forest plots ═══")
+
+  # ── A. Forest plot : toutes les expositions (effet MVMR ajusté HTN) ────
+
+  expo_data <- mvmr_tbl[mvmr_tbl$exposure != HTN_NAME, ] # Ne garde que les expositions d'intérêt (pas les lignes HTN).
+
+  if (nrow(expo_data) > 0) {
+
+    expo_data$ci_lo <- expo_data$b - 1.96 * expo_data$se #Calcule les bornes de l'intervalle de confiance à 95%.
+    expo_data$ci_hi <- expo_data$b + 1.96 * expo_data$se
+    expo_data$label <- paste0(expo_data$exposure, " → ", expo_data$outcome) #Crée un label lisible pour l'axe Y.
+    expo_data <- expo_data[order(expo_data$outcome, expo_data$pval), ] #Trie par outcome puis par p-value. 
+    expo_data$label <- factor(expo_data$label, levels = rev(expo_data$label)) #fait que le résultat le plus significatif est en haut du plot.
+
+    p1 <- ggplot(expo_data, aes(x = b, y = label)) +
+      geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") + #Ligne verticale en pointillés à x = 0 (pas d'effet).
+      geom_point(aes(color = pval < 0.05), size = 3) +
+      geom_errorbarh(aes(xmin = ci_lo, xmax = ci_hi, color = pval < 0.05),
+                     height = 0.2) + #Points + barres d'erreur horizontales, colorés selon la significativité.
+      #Rouge si p < 0.05, noir sinon
+      scale_color_manual(
+        values = c("TRUE" = "#D62728", "FALSE" = "#1F77B4"),
+        labels = c("TRUE" = "p < 0.05", "FALSE" = "p >= 0.05"),
+        name   = ""
+      ) +
+      facet_wrap(~ outcome, scales = "free_y", ncol = 1) +
+      labs(
+        title    = "MVMR: Direct effects adjusted for HTN",
+        subtitle = "Each exposure paired with HTN (Verma 2024) as co-exposure",
+        x = "Beta (95% CI)",
+        y = NULL
+      ) +
+      theme_bw(base_size = 11) +
+      theme(
+        plot.title    = element_text(face = "bold", size = 14),
+        plot.subtitle = element_text(size = 10, color = "grey40"),
+        legend.position = "bottom",
+        strip.background = element_rect(fill = "#2F5597"),
+        strip.text = element_text(color = "white", face = "bold")
+      )
+
+    ht1 <- max(6, nrow(expo_data) * 0.5 + 4)
+    ggsave(
+      file.path(OUTDIR_MVMR, "forest_MVMR_all_exposures_HTN_adjusted.pdf"),
+      p1, width = 12, height = ht1, limitsize = FALSE
+    )
+    ts("  ✓ Forest plot A → forest_MVMR_all_exposures_HTN_adjusted.pdf")
   }
 
-  # ── Summary ──────────────────────────────────────────────────────────────
-  ts("═══════════════════════════════════════════════════════════════")
-  ts("  MVMR SUMMARY")
-  ts("═══════════════════════════════════════════════════════════════")
-  ts(sprintf("  Groups tested            : %d", length(mvmr_groups)))
-  ts(sprintf("  Total group×outcome      : %d", N_MVMR_PAIRS))
-  ts(sprintf("  Successful               : %d", length(mvmr_rows)))
-  ts(sprintf("  Total result rows        : %d", nrow(mvmr_tbl)))
-  ts(sprintf("  Significant (p < 0.05)   : %d",
-             sum(mvmr_tbl$sig_nominal, na.rm = TRUE)))
-  ts(sprintf("  Bonferroni (p < %.2e) : %d",
-             bonf_mvmr, sum(mvmr_tbl$sig_bonferroni, na.rm = TRUE)))
-  ts(sprintf("  Results → %s", OUTDIR_MVMR))
+  # ── B. Forest plot par outcome ─────────────────────────────────────────
 
-  # ── Print top hits ────────────────────────────────────────────────────────
-  top <- head(mvmr_tbl[mvmr_tbl$sig_nominal == TRUE, ], 20)
-  if (nrow(top) > 0) {
-    ts("  ── Top MVMR hits (p < 0.05) ──")
-    print(top[, intersect(c("group", "exposure", "outcome", "b", "se", "pval",
-                             "n_snps", "sig_bonferroni"), names(top))])
+  for (out_name in unique(expo_data$outcome)) {
+
+    out_data <- expo_data[expo_data$outcome == out_name, ]
+    if (nrow(out_data) == 0) next
+
+    out_data$label <- factor(out_data$label, levels = rev(out_data$label))
+
+    p_out <- ggplot(out_data, aes(x = b, y = label)) +
+      geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+      geom_point(aes(color = pval < 0.05), size = 3) +
+      geom_errorbarh(aes(xmin = ci_lo, xmax = ci_hi, color = pval < 0.05),
+                     height = 0.2) +
+      scale_color_manual(
+        values = c("TRUE" = "#D62728", "FALSE" = "#1F77B4"),
+        labels = c("TRUE" = "p < 0.05", "FALSE" = "p >= 0.05"),
+        name   = ""
+      ) +
+      labs(
+        title    = sprintf("MVMR adjusted for HTN → %s", out_name),
+        x = "Beta (95% CI)",
+        y = NULL
+      ) +
+      theme_bw(base_size = 12) +
+      theme(
+        plot.title = element_text(face = "bold", size = 14),
+        legend.position = "bottom"
+      )
+
+    ht_out <- max(4, nrow(out_data) * 0.6 + 2)
+    ggsave(
+      file.path(OUTDIR_MVMR, sprintf("forest_MVMR_HTN_%s.pdf", clean_name(out_name))),
+      p_out, width = 10, height = ht_out, limitsize = FALSE
+    )
+    ts(sprintf("  ✓ Forest per outcome → forest_MVMR_HTN_%s.pdf", clean_name(out_name)))
   }
+
+  # ── C. Comparison forest plot : MVMR vs Univariable ────────────────────
+
+  if (nrow(comparison) > 0 &&
+      any(!is.na(comparison$Univariable_IVW_b)) &&
+      any(!is.na(comparison$MVMR_b_adjusted_HTN))) {
+
+    # Build long format
+    mvmr_long <- data.frame(
+      label  = paste0(comparison$Exposure, " → ", comparison$Outcome),
+      method = "MVMR (adjusted HTN)",
+      b      = comparison$MVMR_b_adjusted_HTN,
+      se     = comparison$MVMR_se_adjusted_HTN,
+      pval   = comparison$MVMR_p_adjusted_HTN_raw,
+      outcome = comparison$Outcome,
+      stringsAsFactors = FALSE
+    )
+
+    uni_se_vec <- rep(NA_real_, nrow(comparison))
+    for (k in seq_len(nrow(comparison))) {
+      row_k <- uni_tbl[uni_tbl$Exposure == comparison$Exposure[k] &
+                          uni_tbl$Outcome == comparison$Outcome[k], ]
+      if (nrow(row_k) > 0) {
+        bse_k <- row_k$IVW_Beta_SE[1]
+        if (!is.na(bse_k)) {
+          se_k <- regmatches(bse_k, regexpr("(?<=\\()[0-9.]+(?=\\))", bse_k, perl = TRUE))
+          if (length(se_k) > 0) uni_se_vec[k] <- as.numeric(se_k)
+        }
+      }
+    }
+
+    uni_long <- data.frame(
+      label  = paste0(comparison$Exposure, " → ", comparison$Outcome),
+      method = "Univariable (total)",
+      b      = comparison$Univariable_IVW_b,
+      se     = uni_se_vec,
+      pval   = comparison$Univariable_IVW_p_raw,
+      outcome = comparison$Outcome,
+      stringsAsFactors = FALSE
+    )
+
+    comp_long <- rbind(mvmr_long, uni_long)
+    comp_long <- comp_long[!is.na(comp_long$b), ]
+    comp_long <- comp_long[!is.na(comp_long$se), ] 
+
+    
+    
+    
+    if (nrow(comp_long) > 0) {
+
+      comp_long$ci_lo <- comp_long$b - 1.96 * comp_long$se
+      comp_long$ci_hi <- comp_long$b + 1.96 * comp_long$se
+
+      # One comparison per outcome
+      for (out_name in unique(comp_long$outcome)) {
+
+        out_comp <- comp_long[comp_long$outcome == out_name, ]
+        if (nrow(out_comp) == 0) next
+
+        out_comp$label <- factor(out_comp$label, levels = rev(unique(out_comp$label)))
+
+        p2 <- ggplot(out_comp, aes(x = b, y = label, color = method, shape = method)) +
+          geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+          geom_point(size = 3, position = position_dodge(width = 0.5)) +
+          geom_errorbarh(
+            aes(xmin = ci_lo, xmax = ci_hi),
+            height = 0.2,
+            position = position_dodge(width = 0.5)
+          ) +
+          scale_color_manual(
+            values = c("MVMR (adjusted HTN)" = "#D62728",
+                       "Univariable (total)"  = "#1F77B4")
+          ) +
+          scale_shape_manual(
+            values = c("MVMR (adjusted HTN)" = 16,
+                       "Univariable (total)"  = 17)
+          ) +
+          labs(
+            title    = sprintf("MVMR vs Univariable → %s", out_name),
+            subtitle = "Red = direct effect (adjusted HTN) | Blue = total effect",
+            x = "Beta (95% CI)", y = NULL,
+            color = "Method", shape = "Method"
+          ) +
+          theme_bw(base_size = 12) +
+          theme(
+            plot.title    = element_text(face = "bold", size = 14),
+            plot.subtitle = element_text(size = 10, color = "grey40"),
+            legend.position = "bottom"
+          )
+
+        n_lab <- length(unique(out_comp$label))
+        ht2 <- max(4, n_lab * 0.8 + 2)
+        ggsave(
+          file.path(OUTDIR_MVMR, sprintf("forest_comparison_HTN_%s.pdf",
+                                          clean_name(out_name))),
+          p2, width = 11, height = ht2, limitsize = FALSE
+        )
+        ts(sprintf("  ✓ Comparison plot → forest_comparison_HTN_%s.pdf",
+                   clean_name(out_name)))
+      }
+    }
+  }
+
+  # ── D. Significant results only ────────────────────────────────────────
+
+  sig_expo <- expo_data[!is.na(expo_data$pval) & expo_data$pval < 0.05, ]
+
+  if (nrow(sig_expo) > 0) {
+
+    sig_expo$label <- factor(sig_expo$label, levels = rev(sig_expo$label))
+
+    p3 <- ggplot(sig_expo, aes(x = b, y = label)) +
+      geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+      geom_point(aes(color = sig_bonferroni), size = 3) +
+      geom_errorbarh(aes(xmin = ci_lo, xmax = ci_hi, color = sig_bonferroni),
+                     height = 0.2) +
+      scale_color_manual(
+        values = c("TRUE" = "#d17600", "FALSE" = "#D62728"),
+        labels = c("TRUE" = "Bonferroni sig", "FALSE" = "Nominal sig"),
+        name   = ""
+      ) +
+      labs(
+        title    = "MVMR adjusted for HTN — Significant direct effects (p < 0.05)",
+        subtitle = sprintf("Gold = Bonferroni (p < %s) | Red = nominal only",
+                           fmt_p(bonf_threshold)),
+        x = "Beta (95% CI)",
+        y = NULL
+      ) +
+      theme_bw(base_size = 12) +
+      theme(
+        plot.title    = element_text(face = "bold", size = 14),
+        plot.subtitle = element_text(size = 10, color = "grey40"),
+        legend.position = "bottom"
+      )
+
+    ht3 <- max(5, nrow(sig_expo) * 0.6 + 2)
+    ggsave(
+      file.path(OUTDIR_MVMR, "forest_MVMR_HTN_significant.pdf"),
+      p3, width = 12, height = ht3, limitsize = FALSE
+    )
+    ts("  ✓ Global forest → forest_MVMR_HTN_significant.pdf")
+
+  } else {
+    ts("  ⚠ No significant results — no global forest plot")
+  }
+
+  ts("═══ Forest plots complete ═══")
+
+  # ── Résumé final ────────────────────────────────────────────────────────────
+  ts("═══ MVMR Summary ═══")
+  ts(sprintf("  N directions testées    : %d", nrow(directions)))
+  ts(sprintf("  N réussies              : %d", length(mvmr_results)))
+  ts(sprintf("  N lignes résultat       : %d", nrow(mvmr_tbl)))
+  ts(sprintf("  N expositions d'intérêt : %d", nrow(mvmr_expo)))
+  ts(sprintf("  N sig (p < 0.05)        : %d", sum(mvmr_tbl$sig_nominal, na.rm = TRUE)))
+  ts(sprintf("  Seuil Bonferroni        : %.2e (%d tests)", bonf_threshold, N_TESTS_MVMR))
+  ts(sprintf("  N Bonferroni            : %d", sum(mvmr_tbl$sig_bonferroni, na.rm = TRUE)))
+
+  if (nrow(comparison) > 0) {
+    ts("── Comparaison univariable vs MVMR ──")
+    ts(sprintf("  Direct confirmed     : %d",
+               sum(comparison$Interpretation == "Direct effect confirmed (independent of HTN)")))
+    ts(sprintf("  Attenuated by HTN    : %d",
+               sum(comparison$Interpretation == "Effect attenuated (may be mediated by HTN)")))
+    ts(sprintf("  Unmasked by HTN      : %d",
+               sum(comparison$Interpretation == "Effect unmasked (HTN was negative confounder)")))
+    ts(sprintf("  No effect            : %d",
+               sum(comparison$Interpretation == "No effect in either analysis")))
+    ts(sprintf("  Comparison NA        : %d",
+               sum(comparison$Interpretation == "Comparison not possible")))
+  }
+
+  ts(sprintf("  Résultats → %s", OUTDIR_MVMR))
 
 } else {
-  ts("  ⚠ No MVMR results were produced")
+  ts("  ⚠ No MVMR results produced")
 }
 
 ts("═══ MVMR script complete ═══")

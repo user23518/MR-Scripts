@@ -34,8 +34,7 @@ files
 
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-OUTDIR <- "/network/iss/debette/users/marine.huang/MR/results"
- 
+OUTDIR <- "/network/iss/debette/users/marine.huang/MR/results/2SMR" 
 
 # ── Traits cSVD ───────────────────────────────────────────────────────────────
 csvd_traits <- list(
@@ -440,6 +439,41 @@ make_row <- function(d, analysis_type = "primary") {
     RadialMR_N_outliers        = d$rad$n_out,
     Steiger_correct_direction  = d$stg_dir,
     Steiger_p                  = fmt_p(d$stg_pval),
+
+    # ── Steiger filtering ──  ───────────────────────────────
+    Steiger_filtering_applied  = isTRUE(d$steiger_filtered),
+
+    Steiger_filter_trigger     = if (!is.null(d$stg_trigger_reason))
+                                   d$stg_trigger_reason
+                                 else NA_character_,
+
+    N_SNPs_Steiger_removed     = if (!is.null(d$n_steiger_removed))
+                                   as.integer(d$n_steiger_removed)
+                                 else NA_integer_,
+
+    N_SNPs_after_Steiger       = if (!is.null(d$n_snps_after_stg))
+                                   as.integer(d$n_snps_after_stg)
+                                 else NA_integer_,
+
+    IVW_Steiger_Beta_SE        = fmt_bse(
+                                   if (!is.null(d$ivw_stg)) d$ivw_stg$b  else NA_real_,
+                                   if (!is.null(d$ivw_stg)) d$ivw_stg$se else NA_real_),
+
+    IVW_Steiger_p              = fmt_p(
+                                   if (!is.null(d$ivw_stg)) d$ivw_stg$pval else NA_real_),
+
+    IVW_Steiger_p_raw          = safe_numeric(
+                                   if (!is.null(d$ivw_stg)) d$ivw_stg$pval else NA_real_),
+  Steiger_post_filter_direction = as.character(
+                                     if (!is.null(d$stg_dir_after))
+                                       d$stg_dir_after else NA),
+
+    Steiger_post_filter_p         = fmt_p(
+                                     if (!is.null(d$stg_pval_after))
+                                       d$stg_pval_after else NA_real_),
+
+    Steiger_still_wrong           = isTRUE(d$stg_still_wrong),
+
     stringsAsFactors = FALSE
   )
 }
@@ -560,7 +594,7 @@ check_concordance <- function(ivw_b, ivw_p, eg_b, eg_p, wm_b, wm_p, a = 0.05) {
   wm_b  <- safe_numeric(wm_b)
   wm_p  <- safe_numeric(wm_p)
 
-   # ── MR-Egger ────────────────────────────────────────── #vérifie que MR-Egger a produit un résultat exploitable puis compare le signe de eg_b et ivw_b 
+# ── MR-Egger ────────────────────────────────────────── #vérifie que MR-Egger a produit un résultat exploitable puis compare le signe de eg_b et ivw_b 
 
   if (!is.na(ivw_p) && ivw_p < a) {
     if (!is.na(eg_b) && !is.na(ivw_b) && sign(eg_b) != sign(ivw_b))
@@ -574,7 +608,7 @@ check_concordance <- function(ivw_b, ivw_p, eg_b, eg_p, wm_b, wm_p, a = 0.05) {
 
   list(
     ok     = length(issues) == 0,
-    reason = if (length(issues) == 0) "—" else paste(issues, collapse = "; ")
+    reason = if (length(issues) == 0) "OK" else paste(issues, collapse = "; ")
   )
 }
 
@@ -908,6 +942,128 @@ dir_res <- tryCatch(
 
   dat_use <- dat_mr
 
+  # ── 7b. Filtrage Steiger par SNP ─────────────────────────────────────────
+ # DÉCLENCHEMENT uniquement si le test global Steiger indique :
+  #   (a) une mauvaise direction        : stg_dir == FALSE
+  #   (b) une direction non confirmée   : stg_pval >= 0.05
+  # PAS de filtrage si direction correcte ET significative (stg_dir TRUE, p < 0.05)
+  # PAS de filtrage si le test Steiger n'a pas pu être calculé (NA)
+
+
+ steiger_filtered   <- FALSE
+  n_steiger_removed  <- 0L
+  n_snps_after_stg   <- nrow(dat_mr)
+  dat_stg            <- dat_mr
+  stg_trigger_reason <- NA_character_   # ← explique pourquoi on filtre ou non
+
+
+# ── Décision de filtrage ─────────────────────────────────────────────────
+  if (is.na(stg_dir) || is.na(stg_pval)) {
+
+    apply_stg_filter   <- FALSE
+    stg_trigger_reason <- "Steiger test indisponible (NA) — pas de filtrage"
+
+  } else if (!isTRUE(stg_dir)) {                       # stg_dir == FALSE
+
+    apply_stg_filter   <- TRUE
+    stg_trigger_reason <- "direction incorrecte (stg_dir = FALSE)"
+
+  } else if (stg_pval >= 0.05) {                        # stg_dir TRUE mais p >= 0.05
+
+    apply_stg_filter   <- TRUE
+    stg_trigger_reason <- sprintf(
+      "direction non confirmée statistiquement (p = %s >= 0.05)", fmt_p(stg_pval))
+
+  } else {                                              # stg_dir TRUE ET p < 0.05
+
+    apply_stg_filter   <- FALSE
+    stg_trigger_reason <- sprintf(
+      "direction correcte et significative (p = %s) — pas de filtrage", fmt_p(stg_pval))
+  }
+
+  ts(sprintf("  [7b] Steiger global : direction = %s | p = %s",
+             as.character(stg_dir), fmt_p(stg_pval)))
+  ts(sprintf("  [7b] Décision filtrage : %s", stg_trigger_reason))
+
+ # ── Filtrage par SNP si déclenché ────────────────────────────────────────
+  if (apply_stg_filter) {
+
+    r_exp_ok <- !all(is.na(dat_mr$r.exposure))
+    r_out_ok <- !all(is.na(dat_mr$r.outcome))
+
+    if (r_exp_ok && r_out_ok) {
+
+      dat_mr$steiger_dir_snp <- (dat_mr$r.exposure^2 > dat_mr$r.outcome^2)
+
+      n_correct <- sum( dat_mr$steiger_dir_snp, na.rm = TRUE)
+      n_wrong   <- sum(!dat_mr$steiger_dir_snp, na.rm = TRUE)
+      n_na_stg  <- sum( is.na(dat_mr$steiger_dir_snp))
+
+      ts(sprintf("  [7b] Steiger par SNP : %d corrects | %d mauvaise direction | %d NA",
+                 n_correct, n_wrong, n_na_stg))
+
+      if (n_wrong > 0) {
+        dat_stg_try <- dat_mr[!is.na(dat_mr$steiger_dir_snp) &
+                                dat_mr$steiger_dir_snp == TRUE, ]
+
+        if (nrow(dat_stg_try) >= MIN_IVS) {
+          steiger_filtered  <- TRUE
+          n_steiger_removed <- n_wrong
+          n_snps_after_stg  <- nrow(dat_stg_try)
+          dat_stg           <- dat_stg_try
+          ts(sprintf("  ✓ [7b] Filtrage appliqué : %d SNP(s) retirés | %d conservés",
+                     n_steiger_removed, n_snps_after_stg))
+        } else {
+          stg_trigger_reason <- sprintf(
+            "%s — ANNULÉ : trop peu de SNPs restants (%d < %d)",
+            stg_trigger_reason, nrow(dat_stg_try), MIN_IVS)
+          ts(sprintf("  ⚠ [7b] Filtrage ANNULÉ : %d SNP(s) restants < MIN_IVS (%d)",
+                     nrow(dat_stg_try), MIN_IVS))
+        }
+
+      } else {
+        stg_trigger_reason <- paste0(stg_trigger_reason,
+                                     " — aucun SNP à retirer (tous corrects)")
+        ts("  ✓ [7b] Aucun SNP à retirer — tous dans la bonne direction")
+      }
+
+    } else {
+      stg_trigger_reason <- paste0(stg_trigger_reason,
+                                   " — r.exposure ou r.outcome indisponibles")
+      ts("  ⚠ [7b] r.exposure ou r.outcome absents — filtrage SNP impossible")
+    }
+  }
+
+# ── 7c. Re-run Steiger sur données filtrées ─────────────────────────────
+  stg_dir_after   <- stg_dir    # par défaut = résultat original
+  stg_pval_after  <- stg_pval
+  stg_still_wrong <- FALSE
+
+  if (steiger_filtered && nrow(dat_stg) >= MIN_IVS) {
+
+    dir_res_after <- tryCatch(
+      directionality_test(dat_stg),
+      error = function(e) {
+        ts(sprintf("  ⚠ [7c] Steiger post-filtrage échoué : %s", conditionMessage(e)))
+        NULL
+      }
+    )
+
+    stg_dir_after  <- safe_col(dir_res_after, "correct_causal_direction")
+    stg_pval_after <- safe_col(dir_res_after, "steiger_pval")
+
+    ts(sprintf("  [7c] Steiger post-filtrage : direction = %s | p = %s",
+               as.character(stg_dir_after), fmt_p(stg_pval_after)))
+
+    if (!isTRUE(stg_dir_after)) {
+      stg_still_wrong <- TRUE
+      ts("  ⚠ [7c] Direction TOUJOURS incorrecte après filtrage → ligne marquée en gris")
+    } else {
+      ts("  ✓ [7c] Direction correcte après filtrage Steiger")
+    }
+  }
+
+
   # ── 8. Primary MR ─────────────────────────────────────────────────────────
   ts("  Running MR ...")
 
@@ -990,6 +1146,45 @@ pleio <- tryCatch(
   ts(sprintf("  ✓ [8/9] MR done : IVW β = %s | p = %s",
              fmt_bse(ivw$b, ivw$se), fmt_p(ivw$pval)))
 
+  # ── 8b. IVW effets aléatoires sur instruments Steiger-filtrés ────────────
+  # Exécuté UNIQUEMENT si le filtrage Steiger a effectivement retiré des SNPs.
+
+  ivw_stg <- list(b    = NA_real_,
+                  se   = NA_real_,
+                  pval = NA_real_,
+                  nsnp = NA_integer_)
+
+  if (steiger_filtered && nrow(dat_stg) >= MIN_IVS) {
+
+    res_stg <- tryCatch(
+      mr(dat_stg, method_list = "mr_ivw"),
+      error = function(e) {
+        ts(sprintf("  ⚠ [8b] IVW Steiger-filtré échoué : %s", conditionMessage(e)))
+        NULL
+      }
+    )
+
+    if (!is.null(res_stg) && nrow(res_stg) > 0) {
+      ivw_stg <- list(
+        b    = res_stg$b[1],
+        se   = res_stg$se[1],
+        pval = res_stg$pval[1],
+        nsnp = as.integer(res_stg$nsnp[1])
+      )
+      ts(sprintf("  ✓ [8b] IVW Steiger-filtré : β = %s | p = %s | n = %d SNPs",
+                 fmt_bse(ivw_stg$b, ivw_stg$se), fmt_p(ivw_stg$pval), ivw_stg$nsnp))
+    } else {
+      ts("  ⚠ [8b] IVW Steiger-filtré : aucun résultat")
+    }
+
+  } else if (!steiger_filtered) {
+    ts("  [8b] Pas de filtrage Steiger appliqué — IVW Steiger non recalculé")
+  } else {
+    ts(sprintf("  ⚠ [8b] Trop peu de SNPs après filtrage (%d) — IVW Steiger ignoré",
+               nrow(dat_stg)))
+  }
+  # ─────────────────────────────────────────────────────────────────────────
+
 
   # ── 10. Radial MR ─────────────────────────────────────────────────────────
   ts("  Running Radial MR ...")
@@ -1021,6 +1216,15 @@ pleio <- tryCatch(
     if (!is.null(dir_res)) fwrite(dir_res, sprintf("%s_steiger.tsv", pfx), sep = "\t")
     if (!is.null(het))     fwrite(het,     sprintf("%s_het.tsv",     pfx), sep = "\t")
     if (!is.null(pleio))   fwrite(pleio,   sprintf("%s_pleio.tsv",   pfx), sep = "\t")
+ # ──  rsIDs des instruments après décision Steiger ────────────────
+    iv_final <- if (steiger_filtered) dat_stg else dat_use
+    writeLines(iv_final$SNP, sprintf("%s_IVs_after_steiger.txt", pfx))
+    ts(sprintf("  ✓ IVs après Steiger : %d rsIDs [filtrage = %s]",
+               nrow(iv_final), as.character(steiger_filtered)))
+    # ─────────────────────────────────────────────────────────────────────────
+
+
+
     ts("  ✓ Files saved")
   }, error = function(e) ts(sprintf("  ✗ FAIL Save : %s", conditionMessage(e))))
 
@@ -1041,19 +1245,28 @@ tryCatch({
   list(
     exposure = exp_name,  outcome  = out_name,
     n_snps   = nrow(dat_use), f_median = f_median,
-    iv_threshold_relaxed = as.integer(isTRUE(d$iv_threshold_relaxed)), ivw = ivw,
+    iv_threshold_relaxed = as.integer(isTRUE(iv_threshold_relaxed)), ivw = ivw,
     ivw_fe = ivw_fe,
     het_Q  = safe_het(het,  "Inverse variance weighted", "Q"),
     het_Qp = safe_het(het,  "Inverse variance weighted", "Q_pval"),
     eg = eg,
-    eg_int    = safe_pleio(pleio, "egger_intercept"),   # ← sécurisé
-    eg_int_se = safe_pleio(pleio, "se"),                # ← sécurisé
-    eg_int_p  = safe_pleio(pleio, "pval"),              # ← sécurisé
+    eg_int    = safe_pleio(pleio, "egger_intercept"),    
+    eg_int_se = safe_pleio(pleio, "se"),                 
+    eg_int_p  = safe_pleio(pleio, "pval"),             
     eg_het_p  = safe_het(het, "MR Egger", "Q_pval"),
     wm = wm, rad = rad,
     stg_dir = stg_dir, stg_pval = stg_pval,
-    concordant = cc$ok, conc_reason = cc$reason
-  )
+    concordant = cc$ok, conc_reason = cc$reason,
+    steiger_filtered   = steiger_filtered,
+    n_steiger_removed  = n_steiger_removed,
+    n_snps_after_stg   = n_snps_after_stg,
+    stg_trigger_reason = stg_trigger_reason,
+    ivw_stg            = ivw_stg,
+    stg_dir_after    = stg_dir_after,     
+    stg_pval_after   = stg_pval_after,    
+    stg_still_wrong  = stg_still_wrong    
+)
+  
 }
 
 
@@ -1290,7 +1503,7 @@ if (HAS_XLSX) {
   )
   sig_style  <- openxlsx::createStyle(fgFill = "#E2EFDA") #Deux styles pour colorier les lignes significatives.
   bonf_style <- openxlsx::createStyle(fgFill = "#FFD966")
-
+grey_style <- openxlsx::createStyle(fgFill = "#BFBFBF")
   write_sheet <- function(wb, sheet_name, data) {
     if (nrow(data) == 0) {
       ts(sprintf("  ⚠ Feuille '%s' vide — non créée", sheet_name))
@@ -1304,35 +1517,46 @@ if (HAS_XLSX) {
 
     sig_rows  <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < 0.05) # retourne les indices (numéros de lignes) qui satisfont la condition
     bonf_rows <- which(!is.na(data$IVW_p_raw) & data$IVW_p_raw < bonf_thresh)
+ 
+
 
     if (length(sig_rows) > 0)
       openxlsx::addStyle(wb, sheet_name, style = sig_style,
                          rows = sig_rows + 1, cols = seq_len(ncol(data)), 
                          gridExpand = TRUE) ## applique à chaque cellule
 
-    if (length(bonf_rows) > 0)
+       if (length(bonf_rows) > 0)
       openxlsx::addStyle(wb, sheet_name, style = bonf_style,
                          rows = bonf_rows + 1, cols = seq_len(ncol(data)),
                          gridExpand = TRUE)
 
-    openxlsx::setColWidths(wb, sheet_name, cols = seq_len(ncol(data)), widths = "auto")
-    openxlsx::freezePane(wb, sheet_name, firstRow = TRUE) #→ fige la première ligne (en-têtes) → reste visible quand on scrolle vers le bas
+    # ── Gris : Steiger toujours incorrect ─────────────────────────────
+    if ("Steiger_still_wrong" %in% names(data)) {
+      grey_rows <- which(!is.na(data$Steiger_still_wrong) & data$Steiger_still_wrong)
+      if (length(grey_rows) > 0)
+        openxlsx::addStyle(wb, sheet_name,
+                           style      = grey_style,
+                           rows       = grey_rows + 1,
+                           cols       = seq_len(ncol(data)),
+                           gridExpand = TRUE)
+    }   # ← ferme if Steiger
 
+    openxlsx::setColWidths(wb, sheet_name, cols = seq_len(ncol(data)), widths = "auto")
+    openxlsx::freezePane(wb, sheet_name, firstRow = TRUE)
     ts(sprintf("  Feuille '%s' : %d lignes | %d sig (p<0.05) | %d Bonferroni (p<%.2e)",
                sheet_name, nrow(data), length(sig_rows), length(bonf_rows), bonf_thresh))
-  }
+  } 
 
-#Crée les 3 onglets dans le classeur.
-  write_sheet(wb, "All results",           tbl)
+write_sheet(wb, "All results",           tbl)
   write_sheet(wb, "Primary",               tbl_primary)
   write_sheet(wb, "Sensitivity (reverse)", tbl_sensitivity)
 
   out_xlsx <- file.path(OUTDIR, "FINAL_bidirectional_MR_all_exposures.xlsx")
   openxlsx::saveWorkbook(wb, out_xlsx, overwrite = TRUE)
-  ts(sprintf("  XLSX sauvegardé → %s", basename(out_xlsx)))
+  ts(sprintf("  XLSX sauvegarde -> %s", basename(out_xlsx)))
 
-} else {
-  ts("  ⚠ openxlsx non disponible")
+} else {   # ← ferme if(HAS_XLSX) ✅
+  ts("  openxlsx non disponible")
 }
 
 

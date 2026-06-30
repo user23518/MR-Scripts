@@ -28,7 +28,7 @@ ieugwasr::user()
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 OUTDIR      <- "/network/iss/debette/users/marine.huang/MR/results"
-OUTDIR_MVMR <- file.path(OUTDIR, "MVMR_HTN_adjusted")
+OUTDIR_MVMR <- file.path(OUTDIR, "MVMR_HTN_adjusted_sensitivity_reverse") # or OUTDIR_MVMR <- file.path(OUTDIR, "MVMR_HTN_adjusted") for primary 
 dir.create(OUTDIR_MVMR, recursive = TRUE, showWarnings = FALSE)
 
 
@@ -303,8 +303,10 @@ ts("  MVMR : [Exposure + HTN] → Outcome — toutes les directions")
 ts("═══════════════════════════════════════════════════════════════")
 
 # Construire les directions PRIMAIRES uniquement
-directions <- uni_tbl[uni_tbl$Analysis_type == "primary",
-                      c("Exposure", "Outcome")]
+directions <- uni_tbl[uni_tbl$Analysis_type == "sensitivity_reverse",
+                      c("Exposure", "Outcome")] # ou "primary"
+
+
 directions <- directions[directions$Exposure != HTN_NAME, ]
 # Retire la direction HTN → outcome (sinon on aurait HTN + HTN → outcome)
 # Car HTN est TOUJOURS co-exposition, jamais exposition principale ici
@@ -315,7 +317,10 @@ ts(sprintf("  %d directions à tester", nrow(directions)))
 mvmr_results <- list()
 
 # ── Fichier incrémental ──────────────────────────────────────────────────
-incremental_tsv <- file.path(OUTDIR_MVMR, "MVMR_HTN_adjusted_incremental.tsv")
+
+incremental_tsv <- file.path(OUTDIR_MVMR, "MVMR_HTN_adjusted_sensitivity_reverse_incremental.tsv")
+
+#for primary : incremental_tsv <- file.path(OUTDIR_MVMR, "MVMR_HTN_adjusted_incremental.tsv")
 header_written  <- FALSE
 
 
@@ -604,13 +609,16 @@ if (length(mvmr_results) > 0) {
   rownames(comparison) <- NULL
 
   # ── Export TSV ──────────────────────────────────────────────────────────────
-  out_tsv <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted.tsv")
+  
+  out_tsv <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted_sensitivity_reverse.tsv")
+  #pr primary out_tsv <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted.tsv")
   fwrite(mvmr_tbl, out_tsv, sep = "\t")
   ts(sprintf("  TSV : %d lignes → %s", nrow(mvmr_tbl), basename(out_tsv)))
 # Sauvegarde le tableau complet (expo + HTN) en TSV.
   
+comp_tsv <- file.path(OUTDIR_MVMR, "MVMR_vs_univariable_comparison_sensitivity_reverse.tsv")
 
-  comp_tsv <- file.path(OUTDIR_MVMR, "MVMR_vs_univariable_comparison.tsv")
+  # pr primary comp_tsv <- file.path(OUTDIR_MVMR, "MVMR_vs_univariable_comparison.tsv")
   fwrite(comparison, comp_tsv, sep = "\t")
   ts(sprintf("  Comparaison TSV → %s", basename(comp_tsv)))
   #Sauvegarde le tableau de comparaison en TSV.
@@ -720,7 +728,8 @@ if (length(mvmr_results) > 0) {
                nrow(comparison),
                length(confirmed_rows), length(attenuated_rows), length(unmasked_rows)))
 
-    out_xlsx <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted.xlsx")
+out_xlsx <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted_sensitivity_reverse.xlsx")
+    # pr primary out_xlsx <- file.path(OUTDIR_MVMR, "FINAL_MVMR_HTN_adjusted.xlsx")
     openxlsx::saveWorkbook(wb, out_xlsx, overwrite = TRUE)
     ts(sprintf("  XLSX sauvegardé → %s", basename(out_xlsx)))
 
@@ -754,8 +763,8 @@ if (length(mvmr_results) > 0) {
         name   = ""
       ) +
       facet_wrap(~ outcome, scales = "free_y", ncol = 1) +
-      labs(
-        title    = "MVMR: Direct effects adjusted for HTN",
+      labs(title = "MVMR (sensitivity reverse): Direct effects adjusted for HTN",
+        #pr primary title    = "MVMR: Direct effects adjusted for HTN",
         subtitle = "Each exposure paired with HTN (Verma 2024) as co-exposure",
         x = "Beta (95% CI)",
         y = NULL
@@ -797,7 +806,8 @@ if (length(mvmr_results) > 0) {
         name   = ""
       ) +
       labs(
-        title    = sprintf("MVMR adjusted for HTN → %s", out_name),
+        title = sprintf("MVMR sensitivity reverse adjusted for HTN → %s", out_name), 
+        #pr primary title    = sprintf("MVMR adjusted for HTN → %s", out_name),
         x = "Beta (95% CI)",
         y = NULL
       ) +
@@ -892,7 +902,8 @@ if (length(mvmr_results) > 0) {
                        "Univariable (total)"  = 17)
           ) +
           labs(
-            title    = sprintf("MVMR vs Univariable → %s", out_name),
+            title = sprintf("MVMR vs Univariable (sensitivity reverse) → %s", out_name),
+            # pr primary title    = sprintf("MVMR vs Univariable → %s", out_name),
             subtitle = "Red = direct effect (adjusted HTN) | Blue = total effect",
             x = "Beta (95% CI)", y = NULL,
             color = "Method", shape = "Method"
@@ -935,8 +946,8 @@ if (length(mvmr_results) > 0) {
         labels = c("TRUE" = "Bonferroni sig", "FALSE" = "Nominal sig"),
         name   = ""
       ) +
-      labs(
-        title    = "MVMR adjusted for HTN — Significant direct effects (p < 0.05)",
+      labs(title = "MVMR sensitivity reverse adjusted for HTN — Significant direct effects",
+        #primary : title    = "MVMR adjusted for HTN — Significant direct effects (p < 0.05)",
         subtitle = sprintf("Gold = Bonferroni (p < %s) | Red = nominal only",
                            fmt_p(bonf_threshold)),
         x = "Beta (95% CI)",
